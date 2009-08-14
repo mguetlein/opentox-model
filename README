@@ -1,4 +1,4 @@
-OpenTox Fminer
+OpenTox lazar
 =============
 
 * An OpenTox REST Webservice (http://www.opentox.org)
@@ -8,64 +8,64 @@ OpenTox Fminer
 
 REST API
 
-Description           	Method  URI   						Parameters   	  Result                Status codes
+Description             Method  URI               Parameters      Result                Status codes
 
-Get index of all 				GET			/models														List of model URIs		200, 500
-models	
+Get index of all        GET     /models                           List of model URIs    200, 500
+models  
 
-Get model description		GET 		/model{id}												XML with model 				200, 202, 404, 500
-																																	representation	
+Get model description   GET     /model{id}                        XML with model        200, 202, 404, 500
+                                                                  representation  
 
-Create a prediction 		POST		/									name, file or		Model URI							200, 500
-model																							dataset_uri
+Create a prediction     POST    /                 name, file or   Model URI             200, 500
+model                                             dataset_uri
 
-Delete a model					DELETE	/{id}																										200, 404, 500
+Delete a model          DELETE  /{id}                                                   200, 404, 500
 
-Create a prediction			POST		/{id}							compound_uri		Prediction URI				200, 404, 500
+Create a prediction     POST    /{id}             compound_uri    Prediction URI        200, 404, 500
 
-Get index of all 				GET			/predictions											List of prediction 		200, 500
-predictions																												URIs						
+Get index of all        GET     /predictions                      List of prediction    200, 500
+predictions                                                       URIs            
 
-Show a prediction				GET			/prediction/{id}									XML with prediction 	200, 202, 404, 500
-																																	result		
+Show a prediction       GET     /prediction/{id}                  XML with prediction   200, 202, 404, 500
+                                                                  result    
 
-Show neighbors for a		GET			/prediction/{id}									XML with neighbors		200, 404, 500
-prediction											/neighbors
+Show neighbors for a    GET     /prediction/{id}                  XML with neighbors    200, 404, 500
+prediction                      /neighbors
 
-Show relevant features	GET			/prediction/{id}									XML with relevant 		200, 404, 500
-for a prediction								/features													features
+Show relevant features  GET     /prediction/{id}                  XML with relevant     200, 404, 500
+for a prediction                /features                         features
 
-Delete a prediction			DELETE	/prediction/{id}																				200, 404, 500
+Delete a prediction     DELETE  /prediction/{id}                                        200, 404, 500
 
 EXAMPLES
 
 Create a prediction model from a tab/whitespace delimited file (smiles activity):
 
-	curl -X POST -d name="Hamster carcinogenicity" -d file=@hamster_carcinogenicity http://webservices.in-silico.ch/lazar/models
+  curl -X POST -d name="Hamster carcinogenicity" -d file=@hamster_carcinogenicity http://webservices.in-silico.ch/lazar/models
 
 Create a prediction model from an existing dataset:
 
-	curl -X POST -d dataset_uri=http://webservices.in-silico.ch/datasets/1 http://webservices.in-silico.ch/lazar/models
+  curl -X POST -d dataset_uri=http://webservices.in-silico.ch/datasets/1 http://webservices.in-silico.ch/lazar/models
 
 Get model information:
 
-	curl http://webservices.in-silico.ch/lazar/model/1 (returns status code 202, if model is still under construction)
+  curl http://webservices.in-silico.ch/lazar/model/1 (returns status code 202, if model is still under construction)
 
 Predict a compound:
 
-	curl -X POST -d compound_uri=http://webservices.in-silico.ch/compound/N%23%5BN%2B%5Dc1ccccc1%2EF%5BB%2D%5D%28F%29%28F%29F http://webservices.in-silico.ch/lazar/model/1
+  curl -X POST -d compound_uri=http://webservices.in-silico.ch/compound/N%23%5BN%2B%5Dc1ccccc1%2EF%5BB%2D%5D%28F%29%28F%29F http://webservices.in-silico.ch/lazar/model/1
 
 Show a prediction:
 
-	curl http://webservices.in-silico.ch/lazar/prediction/1 (returns status code 202, if prediction is still running)
+  curl http://webservices.in-silico.ch/lazar/prediction/1 (returns status code 202, if prediction is still running)
 
 Show prediction neighbors:
 
-	curl http://webservices.in-silico.ch/lazar/prediction/neighbors
+  curl http://webservices.in-silico.ch/lazar/prediction/neighbors
 
 Show relevant features for a prediction:
 
-	curl http://webservices.in-silico.ch/lazar/prediction/features
+  curl http://webservices.in-silico.ch/lazar/prediction/features
 
 INSTALLATION
 
