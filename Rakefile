@@ -1,10 +1,15 @@
 require 'rubygems'
 require 'rake'
 
-desc "Install required gems and openbabel"
+desc "Install required gems"
 task :install do
-	`sudo gem sources -a http://gems.github.com`
-	`sudo gem install sinatra dm-core dm-more builder helma-opentox-ruby-api`
+	puts `sudo gem sources -a http://gems.github.com`
+	puts `sudo gem install sinatra datamapper dm-more builder helma-opentox-ruby-api-wrapper`
+end
+
+desc "Update gems"
+task :update do
+	puts `sudo gem update sinatra datamapper dm-more builder helma-opentox-ruby-api-wrapper`
 end
 
 desc "Run tests"

@@ -1,6 +1,6 @@
 require 'rubygems' 
 
-['sinatra', 'sinatra/url_for', 'dm-core', 'dm-more', 'builder', 'opentox-ruby-api'].each do |lib|
+['sinatra', 'sinatra/url_for', 'dm-core', 'dm-more', 'builder', 'opentox-ruby-api-wrapper'].each do |lib|
 	require lib
 end
 

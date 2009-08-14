@@ -1,7 +1,7 @@
 load 'environment.rb'
 
 # MODELS
-get '/models?' do # get index of models
+get '/models/?' do # get index of models
 	Model.all.collect{ |m| m.uri }.join("\n")
 end
 
