@@ -1,62 +1,38 @@
 load 'environment.rb'
 
-# MODELS
 get '/models/?' do # get index of models
 	Model.all.collect{ |m| m.uri }.join("\n")
 end
 
 get '/model/:id' do
-	begin
-		model = Model.get(params[:id])
-	rescue
-		status 404
-		"Model #{params[:id]} not found"
-	end
-	if model.finished
-		xml model
-	else
-		status 202
-		"Model #{params[:id]} under construction"
-	end
+	halt 404, "Model #{params[:id]} not found." unless model = Model.get(params[:id])
+	halt 202, "Model #{params[:id]} still under construction, please try again later." unless model.finished
+#	builder do |xml|
+#		xml.instruct!
+		model.to_yaml
+#	end
+	#xml model
 end
 
 post '/models' do # create a model
 
-	if params[:dataset_uri]
-		training_dataset = OpenTox::Dataset.new :uri => params[:dataset_uri]
-	else
-		training_dataset = OpenTox::Dataset.new :name => params[:name]
-	end
-	model = Model.create(:name => params[:name], :training_dataset_uri => training_dataset.uri)
+	training_dataset = OpenTox::Dataset.new :uri => params[:dataset_uri]
+	model = Model.create(:name => training_dataset.name, :training_dataset_uri => training_dataset.uri)
 	model.update_attributes(:uri => url_for("/model/", :full) + model.id.to_s)
 
-	pid = fork do #Spork.spork do
-		unless params[:dataset_uri] # create model from a tab delimited file
-			File.open(params[:file][:tempfile].path).each_line do |line|
-				items = line.chomp.split(/\s+/)
-				compound = OpenTox::Compound.new :smiles => items[0]
-				feature = OpenTox::Feature.new :name => params[:name], :values => { 'classification' => items[1] }
-				training_dataset.add(compound, feature)
-			end
-		end
-
+	Spork.spork do
 		feature_generation = OpenTox::Fminer.new(training_dataset)
 		feature_dataset = feature_generation.dataset
 		model.feature_dataset_uri = feature_dataset.uri.chomp 
 		model.finished = true
 		model.save
 	end
-	Process.detach(pid)
+	
 	model.uri.to_s
 end
 
 delete '/model/:id' do
-	begin
-		model = Model.get params[:id]
-	rescue
-		status 404
-		"Model #{params[:id]} not found"
-	end
+	halt 404, "Model #{params[:id]} not found." unless model = Model.get(params[:id])
 	model.predictions.each do |p|
 		p.neighbors.each { |n| n.destroy }
 		p.features.each { |n| f.destroy }
@@ -69,35 +45,28 @@ end
 
 post '/model/:id' do # create prediction
 
-	begin
-		model = Model.get params[:id]
-	rescue
-		status 404
-		"Model #{params[:id]} not found"
-	end
+	halt 404, "Model #{params[:id]} not found." unless model = Model.get(params[:id])
 	query_compound = OpenTox::Compound.new :uri => params[:compound_uri]
 	activity_dataset = OpenTox::Dataset.new :uri => model.training_dataset_uri
 
-	database_activities = activity_dataset.features(query_compound)
+#	database_activities = activity_dataset.features(query_compound)
 
-	if database_activities.size > 0 # return database values
-		database_activities.collect{ |f| f.uri }.join('\n')
+#	if database_activities.size > 0 # return database values
+#		database_activities.collect{ |f| f.uri }.join('\n')
 
-	else # make prediction
+#	else # make prediction
 		prediction = Prediction.find_or_create(:model_uri => model.uri, :compound_uri => params[:compound_uri])
 
 		unless prediction.finished # present cached prediction if finished
 
 			#Spork.spork do
-			pid = fork do
 				prediction.update_attributes(:uri => url_for("/prediction/", :full) + prediction.id.to_s)
 				feature_dataset = OpenTox::Dataset.new :uri => model.feature_dataset_uri
 				compound_descriptors = feature_dataset.all_compounds_and_features
 				training_features = feature_dataset.all_features
-				compound_activities = activity_dataset.all_compounds_and_features
+				compound_activities = activity_dataset.all_compounds_and_features	# TODO: returns nil/fix in gem
 				query_features = query_compound.match(training_features)
 				query_features.each do |f|
-					puts f.uri
 					Feature.find_or_create(:feature_uri => f.uri, :prediction_uri => prediction.uri)
 				end
 
@@ -106,6 +75,7 @@ post '/model/:id' do # create prediction
 				compound_descriptors.each do |compound_uri,features|
 					sim = similarity(features,query_features,model)
 					if sim > 0.0
+						puts sim
 						Neighbor.find_or_create(:compound_uri => compound_uri, :similarity => sim, :prediction_uri => prediction.uri)
 						compound_activities[compound_uri].each do |a|
 							case a.value('classification').to_s
@@ -127,12 +97,12 @@ post '/model/:id' do # create prediction
 				prediction.save!
 				puts prediction.to_yaml
 
-			end
-			Process.detach(pid)
+			#end
+			
 		end
 		
 		prediction.uri
-	end
+#	end
 end
 
 # PREDICTIONS
@@ -141,47 +111,29 @@ get '/predictions?' do # get index of predictions
 end
 
 get '/prediction/:id' do	# display prediction
-	begin
-		prediction = Prediction.get(params[:id])
-	rescue
-		status 404
-		"Prediction #{params[:id]} not found."
-	end
-	if prediction.finished
-		xml prediction
-	else
-		status 202
-		"Prediction #{params[:id]} not yet finished."
-	end
+	halt 404, "Prediction #{params[:id]} not found." unless prediction = Prediction.get(params[:id])
+	#halt 202, "Prediction #{params[:id]} not yet finished, please try again later." unless prediction.finished
+	halt 202, prediction.to_yaml unless prediction.finished
+	prediction.to_yaml
+	#xml prediction
 end
 
 get '/prediction/:id/neighbors' do	
-	begin
-		prediction = Prediction.get(params[:id])
-	rescue
-		status 404
-		"Prediction #{params[:id]} not found."
-	end
-	xml Neighbor.all(:prediction_uri => prediction.uri)
+	halt 404, "Prediction #{params[:id]} not found." unless prediction = Prediction.get(params[:id])
+	halt 202, "Prediction #{params[:id]} not yet finished, please try again later." unless prediction.finished
+	#xml Neighbor.all(:prediction_uri => prediction.uri)
+	Neighbor.all(:prediction_uri => prediction.uri).to_yaml
 end
 
 get '/prediction/:id/features' do	
-	begin
-		prediction = Prediction.get(params[:id])
-	rescue
-		status 404
-		"Prediction #{params[:id]} not found."
-	end
-	xml Feature.all(:prediction_uri => prediction.uri)
+	halt 404, "Prediction #{params[:id]} not found." unless prediction = Prediction.get(params[:id])
+	halt 202, "Prediction #{params[:id]} not yet finished, please try again later." unless prediction.finished
+	#xml Feature.all(:prediction_uri => prediction.uri)
+	Feature.all(:prediction_uri => prediction.uri).to_yaml
 end
 
 delete '/prediction/:id' do
-	begin
-		p = Prediction.get(params[:id])
-	rescue
-		status 404
-		"Prediction #{params[:id]} not found."
-	end
+	halt 404, "Prediction #{params[:id]} not found." unless prediction = Prediction.get(params[:id])
 	p.neighbors.each { |n| n.destroy }
 	p.features.each { |f| f.destroy }
 	p.destroy

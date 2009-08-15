@@ -16,8 +16,8 @@ models
 Get model description   GET     /model{id}                        XML with model        200, 202, 404, 500
                                                                   representation  
 
-Create a prediction     POST    /                 name, file or   Model URI             200, 500
-model                                             dataset_uri
+Create a prediction     POST    /                 dataset_uri     Model URI             200, 500
+model                                             
 
 Delete a model          DELETE  /{id}                                                   200, 404, 500
 
@@ -39,13 +39,9 @@ Delete a prediction     DELETE  /prediction/{id}                                
 
 EXAMPLES
 
-Create a prediction model from a tab/whitespace delimited file (smiles activity):
+Create a prediction model from a dataset:
 
-  curl -X POST -d name="Hamster carcinogenicity" -d file=@hamster_carcinogenicity http://webservices.in-silico.ch/lazar/v0/models
-
-Create a prediction model from an existing dataset:
-
-  curl -X POST -d dataset_uri=http://webservices.in-silico.ch/datasets/1 http://webservices.in-silico.ch/lazar/v0/models
+  curl -X POST -d dataset_uri=http://webservices.in-silico.ch/dataset/v0/1 http://webservices.in-silico.ch/lazar/v0/models
 
 Get model information:
 
