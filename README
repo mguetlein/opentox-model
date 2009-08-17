@@ -13,7 +13,7 @@ Description             Method  URI               Parameters      Result        
 Get index of all        GET     /models                           List of model URIs    200, 500
 models  
 
-Get model description   GET     /model{id}                        XML with model        200, 202, 404, 500
+Get model description   GET     /model{id}                        YAML with model       200, 202, 404, 500
                                                                   representation  
 
 Create a prediction     POST    /                 dataset_uri     Model URI             200, 500
@@ -26,42 +26,62 @@ Create a prediction     POST    /{id}             compound_uri    Prediction URI
 Get index of all        GET     /predictions                      List of prediction    200, 500
 predictions                                                       URIs            
 
-Show a prediction       GET     /prediction/{id}                  XML with prediction   200, 202, 404, 500
+Show a prediction       GET     /prediction/{id}                  YAML with prediction  200, 202, 404, 500
                                                                   result    
 
-Show neighbors for a    GET     /prediction/{id}                  XML with neighbors    200, 404, 500
+Show neighbors for a    GET     /prediction/{id}                  YAML with neighbors   200, 404, 500
 prediction                      /neighbors
 
-Show relevant features  GET     /prediction/{id}                  XML with relevant     200, 404, 500
+Show relevant features  GET     /prediction/{id}                  YAML with relevant    200, 404, 500
 for a prediction                /features                         features
 
 Delete a prediction     DELETE  /prediction/{id}                                        200, 404, 500
 
 EXAMPLES
 
-Create a prediction model from a dataset:
+Model creation:
 
-  curl -X POST -d dataset_uri=http://webservices.in-silico.ch/dataset/v0/1 http://webservices.in-silico.ch/lazar/v0/models
+	Create a dataset from a csv file:
 
-Get model information:
+		curl -X POST -F name="Hamster carcinogenicity" -F file=@hamster_carcinogenicity.csv  http://webservices.in-silico.ch/dataset/v0/
 
-  curl http://webservices.in-silico.ch/lazar/v0/model/1 (returns status code 202, if model is still under construction)
+		returns a {dataset_uri}
 
-Predict a compound:
+	Create a prediction model from a dataset:
 
-  curl -X POST -d compound_uri=http://webservices.in-silico.ch/compound/v0/N%23%5BN%2B%5Dc1ccccc1%2EF%5BB%2D%5D%28F%29%28F%29F http://webservices.in-silico.ch/lazar/v0/model/1
+		curl -X POST -d dataset_uri={dataset_uri} http://webservices.in-silico.ch/lazar/v0/models
 
-Show a prediction:
+		returns a {model_uri}
 
-  curl http://webservices.in-silico.ch/lazar/v0/prediction/1 (returns status code 202, if prediction is still running)
+	Get model information:
 
-Show prediction neighbors:
+		curl {model_uri} (returns status code 202, if model is still under construction)
 
-  curl http://webservices.in-silico.ch/lazar/v0/prediction/neighbors
+Prediction:
 
-Show relevant features for a prediction:
+	Create a compound URI:
 
-  curl http://webservices.in-silico.ch/lazar/v0/prediction/features
+		curl -X POST -d name=Phenylhydrazine http://webservices.in-silico.ch/compound/v0/
+
+		returns http://webservices.in-silico.ch/compound/v0/NNc1ccccc1
+
+	Predict the compound:
+
+		curl -X POST -d compound_uri=http://webservices.in-silico.ch/compound/v0/NNc1ccccc1 {model_uri}
+
+		returns a {prediction_uri}
+
+	Show the prediction:
+
+		curl {prediction_uri} (returns status code 202, if prediction is still running)
+
+	Show prediction neighbors:
+
+		curl {prediction_uri}/neighbors
+
+	Show relevant features for a prediction:
+
+		curl {prediction_uri}/features
 
 INSTALLATION
 
