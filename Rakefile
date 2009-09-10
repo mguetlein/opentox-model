@@ -1,5 +1,6 @@
 require 'rubygems'
 require 'rake'
+require 'tasks/opentox'
 
 desc "Install required gems"
 task :install do
@@ -14,7 +15,6 @@ end
 
 desc "Run tests"
 task :test do
-	puts "No tests for lazar."
-	#load 'test.rb'
+	load 'test/test.rb'
 end
 
