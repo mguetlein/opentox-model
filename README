@@ -1,90 +1,10 @@
-OpenTox lazar
+OpenTox model
 =============
 
 * An OpenTox REST Webservice (http://www.opentox.org)
+* Implements the OpenTox model API 
 * Ruby implementation of the lazar algorithm
-* Implements a subset of the OpenTox algorithm/model API (http://opentox.org/wiki/opentox/Structure).
-* Current version runs at http://webservices.in-silico.ch/lazar/v0
 
-REST API
-
-Description             Method  URI               Parameters      Result                Status codes
-
-Get index of all        GET     /models                           List of model URIs    200, 500
-models  
-
-Get model description   GET     /model{id}                        YAML with model       200, 202, 404, 500
-                                                                  representation  
-
-Create a prediction     POST    /                 dataset_uri     Model URI             200, 500
-model                                             
-
-Delete a model          DELETE  /{id}                                                   200, 404, 500
-
-Create a prediction     POST    /{id}             compound_uri    Prediction URI        200, 404, 500
-
-Get index of all        GET     /predictions                      List of prediction    200, 500
-predictions                                                       URIs            
-
-Show a prediction       GET     /prediction/{id}                  YAML with prediction  200, 202, 404, 500
-                                                                  result    
-
-Show neighbors for a    GET     /prediction/{id}                  YAML with neighbors   200, 404, 500
-prediction                      /neighbors
-
-Show relevant features  GET     /prediction/{id}                  YAML with relevant    200, 404, 500
-for a prediction                /features                         features
-
-Delete a prediction     DELETE  /prediction/{id}                                        200, 404, 500
-
-EXAMPLES
-
-Model creation:
-
-	Create a dataset from a csv file:
-
-		curl -X POST -F name="Hamster carcinogenicity" -F file=@hamster_carcinogenicity.csv  http://webservices.in-silico.ch/dataset/v0/
-
-		returns a {dataset_uri}
-
-	Create a prediction model from a dataset:
-
-		curl -X POST -d dataset_uri={dataset_uri} http://webservices.in-silico.ch/lazar/v0/models
-
-		returns a {model_uri}
-
-	Get model information:
-
-		curl {model_uri} (returns status code 202, if model is still under construction)
-
-Prediction:
-
-	Create a compound URI:
-
-		curl -X POST -d name=Phenylhydrazine http://webservices.in-silico.ch/compound/v0/
-
-		returns http://webservices.in-silico.ch/compound/v0/NNc1ccccc1
-
-	Predict the compound:
-
-		curl -X POST -d compound_uri=http://webservices.in-silico.ch/compound/v0/NNc1ccccc1 {model_uri}
-
-		returns a {prediction_uri}
-
-	Show the prediction:
-
-		curl {prediction_uri} (returns status code 202, if prediction is still running)
-
-	Show prediction neighbors:
-
-		curl {prediction_uri}/neighbors
-
-	Show relevant features for a prediction:
-
-		curl {prediction_uri}/features
-
-INSTALLATION
-
-Run 'rake install' to install the required gems
+Documentation: Source code (application.rb, lazar.rb)
 
 Copyright (c) 2009 Christoph Helma. See LICENSE for details.
