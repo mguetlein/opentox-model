@@ -4,7 +4,7 @@ require 'application.rb'
 require 'rack'
 require 'rack/contrib'
 
-['db','public','log','tmp'].each do |dir|
+['models','public','log','tmp'].each do |dir|
 	FileUtils.mkdir_p dir unless File.exists?(dir)
 end
 

@@ -1,47 +1,144 @@
-require 'datamapper'
+require 'redland'
+require 'rdf/redland'
+require 'rdf/redland/util'
 
-DataMapper::setup(:default, "sqlite3://#{Dir.pwd}/db/#{ENV['RACK_ENV']}.db")
+@@storage = Redland::MemoryStore.new
+@@parser = Redland::Parser.new
+@@serializer = Redland::Serializer.new
 
-class LazarModel
-	include DataMapper::Resource
-	property :id, Serial
-	property :activity_dataset_uri, String, :length => 256 # default is too short for URIs
-	property :feature_dataset_uri, String, :length => 256 # default is too short for URIs
-	property :created_at, DateTime
+get '/?' do # get index of models
+	Dir["models/*"].collect{|model|  url_for("/", :full) + File.basename(model,".yaml")}.sort.join("\n")
+end
 
-	def uri
-		File.join(OpenTox::Model::LazarClassification.base_uri,"lazar_classification", self.id.to_s)
+get '/:id/?' do
+	path = File.join("models",params[:id] + ".yaml")
+	if File.exists? path
+		send_file path
+	else
+		status 404
+		"Model #{params[:id]} does not exist."
+	end
+end
+
+delete '/:id/?' do
+	path = File.join("models",params[:id] + ".yaml")
+	if File.exists? path
+		File.delete path
+		"Model #{params[:id]} deleted."
+	else
+		status 404
+		"Model #{params[:id]} does not exist."
+	end
+end
+
+post '/?' do # create model
+	halt 404, "Dataset #{params[:activity_dataset_uri]} not found" unless  OpenTox::Dataset.find(params[:activity_dataset_uri])
+	halt 404, "Dataset #{params[:feature_dataset_uri]} not found" unless OpenTox::Dataset.find(params[:feature_dataset_uri])
+	activities = Redland::Model.new @storage
+	features = Redland::Model.new @storage
+	training_activities = OpenTox::Dataset.find params[:activity_dataset_uri]
+	training_features = OpenTox::Dataset.find params[:feature_dataset_uri]
+	@@parser.parse_string_into_model(activities,training_activities,'/')
+	@@parser.parse_string_into_model(features,training_features,'/')
+	feature = Redland::Node.new(Redland::Uri.new(File.join(@@config[:services]["opentox-algorithm"],'fminer')))
+	p_value = Redland::Node.new(Redland::Uri.new(File.join(@@config[:services]["opentox-algorithm"],'fminer/p_value')))
+	effect = Redland::Node.new(Redland::Uri.new(File.join(@@config[:services]["opentox-algorithm"],'fminer/effect')))
+
+	smarts = []
+	p_vals = {}
+	effects = {}
+	fingerprints = {}
+	features.triples do |s,p,o|
+		s = s.uri.to_s.sub(/^\//,'') 
+		case p
+		when feature
+			fingerprints[s] = [] unless fingerprints[s]
+			fingerprints[s] << o.uri.to_s.sub(/^\//,'') 
+		when p_value
+			sma = s.to_s
+			smarts << sma
+			p_vals[sma] = o.to_s.to_f
+		when effect
+			sma = s.to_s
+			effects[sma] = o.to_s
+		end
 	end
 
-	def predict(compound)
+	activity_uris = []
+	act = {}
+	activities.triples do |s,p,o|
+		activity_uris << p.uri.to_s
+		s = s.uri.to_s
+		case o.to_s
+		when "true"
+			act[s] = true
+		when "false"
+			act[s] = false
+		end
+	end
 
-		training_activities = OpenTox::Dataset.find :uri => @activity_dataset_uri
-		# TODO: find database activities
-		# TODO: find prediction
-		training_features = OpenTox::Dataset.find :uri => @feature_dataset_uri
+	activity_uris.uniq!
+	if activity_uris.size != 1
+		halt 400
+		"Dataset #{params[:activity_dataset_uri]} has not exactly one feature."
+	end
 
-		prediction_dataset = OpenTox::Dataset.find_or_create(:name => training_activities.name + '_predictions')
-		prediction_neighbors = OpenTox::Dataset.find_or_create(:name => training_activities.name + '_neighbors')
-		prediction_features = OpenTox::Dataset.find_or_create(:name => training_activities.name + '_prediction_features')
+	id = Dir["models/*"].collect{|models|  File.basename(models,".yaml").to_i}.sort.last
+	if id.nil?
+		id = 1
+	else
+		id += 1
+	end
 
-		feature_uris = compound.match(training_features)
-		prediction_features.add({compound.uri => feature_uris}.to_yaml)
+	File.open(File.join("models",id.to_s + ".yaml"),"w") do |f|
+		f.write({
+			:endpoint => activity_uris[0],
+			:features => smarts,
+			:p_values => p_vals,
+			:effects => effects,
+			:fingerprints => fingerprints,
+			:activities => act
+		}.to_yaml)
+	end
+	url_for("/#{id}", :full)
 
-		conf = 0.0
-		neighbors = []
+end
 
-		training_features.compounds.each do |neighbor|
-			sim = OpenTox::Algorithm::Similarity.weighted_tanimoto(training_features,neighbor,prediction_features,compound).to_f
-			if sim > 0.3
-				neighbors << neighbor.uri
-				training_activities.features(neighbor).each do |a|
-					case OpenTox::Feature.new(:uri => a.uri).value('classification').to_s
-					when 'true'
-						conf += OpenTox::Utils.gauss(sim) 
-					when 'false'
-						conf -= OpenTox::Utils.gauss(sim)
-					end
-				end
+# PREDICTIONS
+post '/:id/?' do # create prediction
+	path = File.join("models",params[:id] + ".yaml")
+	if !File.exists? path
+		status 404
+		"Model #{params[:id]} does not exist."
+	end
+
+	compound = OpenTox::Compound.new :uri => params[:compound_uri]
+
+	data = YAML.load_file path
+
+	# find database activities
+	if data[:activities][compound.uri]
+		output = Redland::Model.new @storage
+		output.add Redland::Uri.new(compound.uri), Redland::Uri.new(data[:endpoint]), Redland::Literal.new(data[:activities][compound.uri].to_s)
+		halt 200, @@serializer.model_to_string(Redland::Uri.new(url_for("/",:full)), output)
+	end
+
+	compound_matches = compound.match data[:features]
+
+	conf = 0.0
+	neighbors = []
+	classification = nil
+
+	data[:fingerprints].each do |uri,matches|
+		sim = weighted_tanimoto(compound_matches,matches,data[:p_values])
+		if sim > 0.3
+
+			neighbors << uri
+			case data[:activities][uri].to_s
+			when 'true'
+				conf += OpenTox::Utils.gauss(sim) 
+			when 'false'
+				conf -= OpenTox::Utils.gauss(sim)
 			end
 		end
 		conf = conf/neighbors.size
@@ -50,85 +147,32 @@ class LazarModel
 		elsif conf < 0.0
 			classification = false
 		end
+	end
 
-		prediction = OpenTox::Feature.new(:name => training_activities.name + " prediction", :classification => classification, :confidence => conf)
-		prediction_neighbors.add({compound.uri => neighbors}.to_yaml)
-		prediction_dataset.add({compound.uri => [prediction.uri]}.to_yaml)
+	output = Redland::Model.new @storage
 
-		prediction.uri
+	output.add Redland::Uri.new(compound.uri), Redland::Uri.new(url_for("/#{params[:id]}/classification",:full)), classification.to_s
+	output.add Redland::Uri.new(compound.uri), Redland::Uri.new(url_for("/#{params[:id]}/confidence",:full)), conf.to_s
+	@@serializer.model_to_string(Redland::Uri.new(url_for("/",:full)), output)
+	
+#	{ :classification => classification,
+#		:confidence => conf,
+#		:neighbors => neighbors,
+#		:features => compound_matches
+#	}.to_yaml
+end
 
+
+def weighted_tanimoto(fp_a,fp_b,p)
+	common_features = fp_a & fp_b
+	all_features = fp_a + fp_b
+	common_p_sum = 0.0
+	if common_features.size > 0
+		common_features.each{|f| common_p_sum += p[f]}
+		all_p_sum = 0.0
+		all_features.each{|f| all_p_sum += p[f]}
+		common_p_sum/all_p_sum
+	else
+		0.0
 	end
 end
-
-# automatically create the post table
-LazarModel.auto_migrate! #unless LazarModel.table_exists?
-LazarModel.auto_migrate! if ENV['RACK_ENV'] == 'test'
-
-get '/lazar_classification/?' do # get index of models
-	LazarModel.all.collect{|m| m.uri}.join("\n")
-end
-
-get '/lazar_classification/:id/?' do
-	halt 404, "Model #{params[:id]} not found." unless @model = LazarModel.get(params[:id])
-	@model.to_yaml
-end
-
-delete '/lazar_classification/:id/?' do
-	halt 404, "Model #{params[:id]} not found." unless @model = LazarModel.get(params[:id])
-	@model.destroy
-	"Model #{params[:id]} succesfully deleted."
-end
-
-post '/lazar_classification/?' do # create model
-	halt 404, "Dataset #{params[:activity_dataset_uri]} not found" unless  OpenTox::Dataset.find(:uri => params[:activity_dataset_uri])
-	halt 404, "Dataset #{params[:feature_dataset_uri]} not found" unless OpenTox::Dataset.find(:uri => params[:feature_dataset_uri])
-	model = LazarModel.new(params)
-	model.save
-	model.uri
-end
-
-# PREDICTIONS
-post '/lazar_classification/:id/?' do # create prediction
-	halt 404, "Model #{params[:id]} not found." unless @model = LazarModel.get(params[:id])
-	compound = OpenTox::Compound.new :uri => params[:compound_uri]
-	@model.predict(compound)
-end
-
-get '/lazar_classification/*/predictions?' do # get dataset URI
-	name = params[:splat].first
-	halt 404, "Model #{name} not found." unless @model = LazarModel.get(request.url)
-	# Dataset.find
-end
-
-get '/lazar_classification/*/prediction/*' do	# display prediction for a compound
-	name = params[:splat].first
-	compound_uri = params[:splat][1]
-	halt 404, "Model #{name} not found." unless @model = LazarModel.get(request.url)
-	# prediction not found
-	#prediction.to_yaml
-	#xml prediction
-end
-
-get '/lazar_classification/*/prediction/*/neighbors' do	
-	name = params[:splat].first
-	compound_uri = params[:splat][1]
-	halt 404, "Model #{name} not found." unless @model = LazarModel.get(request.url)
-	# prediction not found
-	# prediction.neighbors
-end
-
-get '/lazar_classification/*/prediction/*/features' do	
-	name = params[:splat].first
-	compound_uri = params[:splat][1]
-	halt 404, "Model #{name} not found." unless @model = LazarModel.get(request.url)
-	# prediction not found
-	# prediction not found
-	# prediction.features
-end
-
-delete '/lazar_classification/*/prediction/*' do	# display prediction for a compound
-	name = params[:splat].first
-	halt 404, "Model #{name} not found." unless @model = LazarModel.get(request.url)
-	# Prediction.destroy
-end
-
