@@ -31,7 +31,7 @@ delete '/:id/?' do
 	end
 end
 
-post '/?' do # create model
+post '/lazar/?' do # create model
 	halt 404, "Dataset #{params[:activity_dataset_uri]} not found" unless  OpenTox::Dataset.find(params[:activity_dataset_uri])
 	halt 404, "Dataset #{params[:feature_dataset_uri]} not found" unless OpenTox::Dataset.find(params[:feature_dataset_uri])
 	activities = Redland::Model.new @storage
