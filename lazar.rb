@@ -3,12 +3,23 @@ get '/?' do # get index of models
 end
 
 get '/:id/?' do
+
 	path = File.join("models",params[:id] + ".yaml")
-	if File.exists? path
+	halt 404, "Model #{params[:id]} does not exist." unless File.exists? path
+	uri = url_for("/lazar/#{params[:id]}", :full)
+
+	accept = request.env['HTTP_ACCEPT']
+	accept = "application/rdf+xml" if accept == '*/*' or accept == '' or accept.nil?
+	case accept
+	when "application/rdf+xml"
+		lazar = OpenTox::Model::Lazar.new
+		lazar.read_yaml(params[:id],File.read(path))
+		lazar.rdf
+	when /yaml/
 		send_file path
 	else
-		status 404
-		"Model #{params[:id]} does not exist."
+		status 400
+		"Unsupported MIME type '#{request.content_type}'"
 	end
 end
 
@@ -26,7 +37,7 @@ end
 post '/?' do # create model
 
 	case request.content_type
-	when /application\/x-yaml|text\/yaml/
+	when /yaml/
 		input =	request.env["rack.input"].read
 		id = Dir["models/*"].collect{|model|  File.basename(model,".yaml").to_i}.sort.last
 		if id.nil?
@@ -47,44 +58,41 @@ end
 # PREDICTIONS
 post '/:id/?' do # create prediction
 
-  storage = Redland::MemoryStore.new
-  parser = Redland::Parser.new
-  serializer = Redland::Serializer.new
-
 	path = File.join("models",params[:id] + ".yaml")
-	if !File.exists? path
-		status 404
-		"Model #{params[:id]} does not exist."
-	end
-
-	compound = OpenTox::Compound.new :uri => params[:compound_uri]
-
-	data = YAML.load_file path
+	halt 404, "Model #{params[:id]} does not exist." unless File.exists? path
+	halt 404, "No compound_uri." unless compound_uri = params[:compound_uri]
+	lazar = YAML.load_file path
+	dataset = OpenTox::Dataset.new
 
 	# find database activities
-	if data[:activities][compound.uri]
-		output = Redland::Model.new storage
-		output.add Redland::Uri.new(compound.uri), Redland::Uri.new(data[:endpoint]), Redland::Literal.new(data[:activities][compound.uri].to_s)
-		response = serializer.model_to_string(Redland::Uri.new(url_for("/",:full)), output)
+	if lazar[:activities][compound_uri]
+		c = dataset.find_or_create_compound(compound_uri)
+		f = dataset.find_or_create_feature(lazar[:endpoint])
+		v = dataset.find_or_create_value lazar[:activities][compound_uri].join(',')
+		dataset.add_data_entry c,f,v
 	else
-		compound_matches = compound.match data[:features]
+		#puts compound_uri
+		compound = OpenTox::Compound.new(:uri => compound_uri)
+		#puts compound.smiles
+		#puts compound.inchi
+		compound_matches = compound.match lazar[:features]
 
 		conf = 0.0
 		neighbors = []
 		classification = nil
 
-		data[:fingerprints].each do |uri,matches|
+		lazar[:fingerprints].each do |uri,matches|
 
-			sim = weighted_tanimoto(compound_matches,matches,data[:p_values])
+			sim = weighted_tanimoto(compound_matches,matches,lazar[:p_values])
 			if sim > 0.3
-
 				neighbors << uri
-				case data[:activities][uri].to_s
-				when 'true'
-					puts "t: #{sim}"
-					conf += OpenTox::Utils.gauss(sim)
-				when 'false'
-					conf -= OpenTox::Utils.gauss(sim)
+				lazar[:activities][uri].each do |act|
+					case act.to_s
+					when 'true'
+						conf += OpenTox::Utils.gauss(sim)
+					when 'false'
+						conf -= OpenTox::Utils.gauss(sim)
+					end
 				end
 			end
 		end
@@ -96,25 +104,24 @@ post '/:id/?' do # create prediction
 			classification = false
 		end
 
-		output = Redland::Model.new storage
-		output.add Redland::Uri.new(compound.uri), Redland::Uri.new(url_for("/#{params[:id]}/classification",:full)), classification.to_s
-		output.add Redland::Uri.new(compound.uri), Redland::Uri.new(url_for("/#{params[:id]}/confidence",:full)), conf.to_s
-		neighbors.each do |neighbor|
-			output.add Redland::Uri.new(compound.uri), Redland::Uri.new(url_for("/#{params[:id]}/neighbor",:full)), Redland::Uri.new(neighbor)
-		end
-		response =serializer.model_to_string(Redland::Uri.new(url_for("/",:full)), output)
-	end
+		c = dataset.find_or_create_compound(compound_uri)
+		f = dataset.find_or_create_feature(lazar[:endpoint] + " lazar prediction")
+		v = dataset.find_or_create_value classification
+		dataset.add_data_entry c,f,v
 	
-	m = { :classification => classification,
-		:confidence => conf,
-		:neighbors => neighbors,
-		:features => compound_matches
-	}
-	puts m.to_yaml
+	end
 
-	response
+	if /yaml/ =~ params[:type] 
+		{ :classification => classification,
+			:confidence => conf,
+			:neighbors => neighbors,
+			:features => compound_matches
+		}.to_yaml
+	else
+		dataset.rdf
+	end
+
 end
-
 
 def weighted_tanimoto(fp_a,fp_b,p)
 	common_features = fp_a & fp_b
