@@ -21,7 +21,7 @@ Supported MIME formats (http://chemical-mime.sourceforge.net/):
 Examples:
 
 List all lazar models
-  curl http://webservices.in-silico.ch/model
+  curl http://webservices.in-silico.ch/test/model
 
 Get the representation of a lazar model
   curl -H "Accept:application/rdf+xml" http://webservices.in-silico.ch/test/model/{id}
@@ -36,7 +36,7 @@ Predict a dataset
   curl -X POST -d dataset_uri={dataset_uri} http://webservices.in-silico.ch/test/model/{id}
 
 Delete a model
-  curl -X DELETE http://webservices.in-silico.ch/model/{id}
+  curl -X DELETE http://webservices.in-silico.ch/test/model/{id}
 
 More documentation: Source code (application.rb, lazar.rb)
 
