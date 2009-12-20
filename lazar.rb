@@ -12,8 +12,7 @@ get '/:id/?' do
 	accept = "application/rdf+xml" if accept == '*/*' or accept == '' or accept.nil?
 	case accept
 	when "application/rdf+xml"
-		lazar = OpenTox::Model::Lazar.new
-		lazar.read_yaml(params[:id],File.read(path))
+		lazar = OpenTox::Model::Lazar.new(path)
 		lazar.rdf
 	when /yaml/
 		send_file path
@@ -29,8 +28,7 @@ delete '/:id/?' do
 		File.delete path
 		"Model #{params[:id]} deleted."
 	else
-		status 404
-		"Model #{params[:id]} does not exist."
+		halt 404, "Model #{params[:id]} does not exist."
 	end
 end
 
@@ -56,83 +54,33 @@ post '/?' do # create model
 end
 
 # PREDICTIONS
+# TODO predict dataset, correct owl format
 post '/:id/?' do # create prediction
 
 	path = File.join("models",params[:id] + ".yaml")
 	halt 404, "Model #{params[:id]} does not exist." unless File.exists? path
-	halt 404, "No compound_uri." unless compound_uri = params[:compound_uri]
-	lazar = YAML.load_file path
-	dataset = OpenTox::Dataset.new
+	halt 404, "No compound_uri or dataset_uri parameter." unless compound_uri = params[:compound_uri] or dataset_uri = params[:dataset_uri]
+	lazar = OpenTox::Model::Lazar.new(path)
 
-	# find database activities
-	if lazar[:activities][compound_uri]
-		c = dataset.find_or_create_compound(compound_uri)
-		f = dataset.find_or_create_feature(lazar[:endpoint])
-		v = dataset.find_or_create_value lazar[:activities][compound_uri].join(',')
-		dataset.add_data_entry c,f,v
-	else
-		#puts compound_uri
-		compound = OpenTox::Compound.new(:uri => compound_uri)
-		#puts compound.smiles
-		#puts compound.inchi
-		compound_matches = compound.match lazar[:features]
-
-		conf = 0.0
-		neighbors = []
-		classification = nil
-
-		lazar[:fingerprints].each do |uri,matches|
-
-			sim = weighted_tanimoto(compound_matches,matches,lazar[:p_values])
-			if sim > 0.3
-				neighbors << uri
-				lazar[:activities][uri].each do |act|
-					case act.to_s
-					when 'true'
-						conf += OpenTox::Utils.gauss(sim)
-					when 'false'
-						conf -= OpenTox::Utils.gauss(sim)
-					end
-				end
-			end
+	if compound_uri
+		lazar.classify(compound_uri) unless lazar.database_activity?(compound_uri)
+	elsif dataset_uri
+		input_dataset = OpenTox::Dataset.find(dataset_uri)
+		input_dataset.compounds.each do |compound_uri|
+			lazar.classify(compound_uri) unless lazar.database_activity?(compound_uri)
 		end
-
-		conf = conf/neighbors.size
-		if conf > 0.0
-			classification = true
-		elsif conf < 0.0
-			classification = false
-		end
-
-		c = dataset.find_or_create_compound(compound_uri)
-		f = dataset.find_or_create_feature(lazar[:endpoint] + " lazar prediction")
-		v = dataset.find_or_create_value classification
-		dataset.add_data_entry c,f,v
-	
 	end
 
-	if /yaml/ =~ params[:type] 
-		{ :classification => classification,
-			:confidence => conf,
-			:neighbors => neighbors,
-			:features => compound_matches
-		}.to_yaml
+	case request.env['HTTP_ACCEPT']
+	when /yaml/ 
+		lazar.predictions.to_yaml
 	else
-		dataset.rdf
+		if params[:compound_uri]
+			lazar.dataset.rdf
+		elsif params[:dataset_uri]
+			lazar.dataset.save
+		end
 	end
 
 end
 
-def weighted_tanimoto(fp_a,fp_b,p)
-	common_features = fp_a & fp_b
-	all_features = fp_a + fp_b
-	common_p_sum = 0.0
-	if common_features.size > 0
-		common_features.each{|f| common_p_sum += p[f]}
-		all_p_sum = 0.0
-		all_features.each{|f| all_p_sum += p[f]}
-		common_p_sum/all_p_sum
-	else
-		0.0
-	end
-end

@@ -9,8 +9,8 @@ REST operations:
 
 Get a list of all lazar models          GET     /     -               List of model URIs          200
 Get the representation of a lazar model GET     /{id} -               Model representation        200,404
-Predict a compound                      POST    /{id} compound_uri,   Prediction representation   200,404,500
-                                                      type (optional) 
+Predict a compound                      POST    /{id} compound_uri    Prediction representation   200,404,500
+Predict a dataset                       POST    /{id} dataset_uri     Prediction dataset URI      200,404,500
 Delete a model                          DELETE  /{id} -               -                           200,404
 
 Supported MIME formats (http://chemical-mime.sourceforge.net/):
@@ -29,8 +29,11 @@ Get the representation of a lazar model
 Predict a compound
   curl -X POST -d compound_uri={compound_uri} http://webservices.in-silico.ch/test/model/{id}
 
-Predict a compound and get the result as YAML (setting the Accept header does not work with Content-Type:application/x-www-form-urlencoded to submit parameters)
-  curl -X POST -d compound_uri={compound_uri} -d type=application/x-yaml http://webservices.in-silico.ch/test/model/{id}
+Predict a compound and get the result as YAML
+  curl -X POST -H "Accept:application/x-yaml" -d compound_uri={compound_uri} http://webservices.in-silico.ch/test/model/{id}
+
+Predict a dataset
+  curl -X POST -d dataset_uri={dataset_uri} http://webservices.in-silico.ch/test/model/{id}
 
 Delete a model
   curl -X DELETE http://webservices.in-silico.ch/model/{id}
