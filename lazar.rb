@@ -1,69 +1,101 @@
-get '/?' do # get index of models
-	Dir["models/*"].collect{|model|  url_for("/", :full) + File.basename(model,".yaml")}.sort.join("\n")
-end
+class Lazar < Model
 
-get '/:id/?' do
+	attr_accessor :dataset, :predictions
 
-	path = File.join("models",params[:id] + ".yaml")
-	halt 404, "Model #{params[:id]} does not exist." unless File.exists? path
-	uri = url_for("/lazar/#{params[:id]}", :full)
+	def classify(compound_uri)
 
-	accept = request.env['HTTP_ACCEPT']
-	accept = "application/rdf+xml" if accept == '*/*' or accept == '' or accept.nil?
-	case accept
-	when "application/rdf+xml"
-		lazar = OpenTox::Model::Lazar.new(path)
-		lazar.rdf
-	when /yaml/
-		send_file path
-	else
-		status 400
-		"Unsupported MIME type '#{request.content_type}'"
+		@dataset = OpenTox::Dataset.new
+		@predictions = {}
+		lazar = YAML.load yaml
+		compound = OpenTox::Compound.new(:uri => compound_uri)
+		compound_matches = compound.match lazar[:features]
+
+		conf = 0.0
+		neighbors = []
+		classification = nil
+
+		lazar[:fingerprints].each do |uri,matches|
+
+			sim = OpenTox::Algorithm::Similarity.weighted_tanimoto(compound_matches,matches,lazar[:p_values])
+			if sim > 0.3
+				neighbors << uri
+				lazar[:activities][uri].each do |act|
+					case act.to_s
+					when 'true'
+						conf += OpenTox::Utils.gauss(sim)
+					when 'false'
+						conf -= OpenTox::Utils.gauss(sim)
+					end
+				end
+			end
+		end
+	
+		conf = conf/neighbors.size
+		if conf > 0.0
+			classification = true
+		elsif conf < 0.0
+			classification = false
+		end
+		
+		compound = @dataset.find_or_create_compound(compound_uri)
+		feature = @dataset.find_or_create_feature(lazar[:endpoint])
+
+		if (classification != nil)
+			tuple = @dataset.create_tuple(feature,{ 'lazar#classification' => classification, 'lazar#confidence' => conf})
+			@dataset.add_tuple compound,tuple
+			@predictions[compound_uri] = { lazar[:endpoint] => { :lazar_prediction => {
+					:classification => classification,
+					:confidence => conf,
+					:neighbors => neighbors,
+					:features => compound_matches
+				} } }
+		end
 	end
-end
 
-delete '/:id/?' do
-	path = File.join("models",params[:id] + ".yaml")
-	if File.exists? path
-		File.delete path
-		"Model #{params[:id]} deleted."
-	else
-		halt 404, "Model #{params[:id]} does not exist."
+	def database_activity?(compound_uri)
+		# find database activities
+		lazar = YAML.load self.yaml
+		db_activities = lazar[:activities][compound_uri]
+		if db_activities
+			c = @dataset.find_or_create_compound(compound_uri)
+			f = @dataset.find_or_create_feature(lazar[:endpoint])
+			v = db_activities.join(',')
+			@dataset.add c,f,v
+			@predictions[compound_uri] = { lazar[:endpoint] => {:measured_activities => db_activities}}
+			true
+		else
+			false
+		end
 	end
+
 end
 
 post '/?' do # create model
-
+	model = Lazar.new
+	model.save
+	model.uri = url_for("/#{model.id}", :full)
 	case request.content_type
 	when /yaml/
 		input =	request.env["rack.input"].read
-		id = Dir["models/*"].collect{|model|  File.basename(model,".yaml").to_i}.sort.last
-		if id.nil?
-			id = 1
-		else
-			id += 1
-		end
-		File.open(File.join("models",id.to_s + ".yaml"),"w+") { |f| f.write input }
-		url_for("/#{id}", :full)
+		model.yaml = input
+		lazar = OpenTox::Model::Lazar.from_yaml(input)
+		lazar.uri = model.uri
+		model.owl = lazar.rdf
+		model.save
 	else
 		halt 400, "MIME type \"#{request.content_type}\" not supported."
 	end
-
-	url_for("/#{id}", :full)
-
+	model.uri
 end
 
-# PREDICTIONS
-# TODO predict dataset, correct owl format
 post '/:id/?' do # create prediction
 
-	path = File.join("models",params[:id] + ".yaml")
-	halt 404, "Model #{params[:id]} does not exist." unless File.exists? path
+	lazar = Lazar.get(params[:id])
+	halt 404, "Model #{params[:id]} does not exist." unless lazar
 	halt 404, "No compound_uri or dataset_uri parameter." unless compound_uri = params[:compound_uri] or dataset_uri = params[:dataset_uri]
-	lazar = OpenTox::Model::Lazar.new(path)
 
 	if compound_uri
-		lazar.classify(compound_uri) unless lazar.database_activity?(compound_uri)
+		lazar.classify(compound_uri) unless lazar.database_activity?(compound_uri) # FEHLER
 	elsif dataset_uri
 		input_dataset = OpenTox::Dataset.find(dataset_uri)
 		input_dataset.compounds.each do |compound_uri|
