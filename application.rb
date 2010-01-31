@@ -54,5 +54,5 @@ end
 
 delete '/?' do
 	Model.all.each { |d| d.destroy! }
-	"All datasets deleted."
+	"All Models deleted."
 end
