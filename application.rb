@@ -1,5 +1,5 @@
 require 'rubygems'
-gem 'opentox-ruby-api-wrapper', '~>1.2'
+gem 'opentox-ruby-api-wrapper', '=1.2.6'
 require 'opentox-ruby-api-wrapper'
 require 'dm-core'
 require 'dm-serializer'
