@@ -1,14 +1,6 @@
 require 'rubygems'
-gem 'opentox-ruby-api-wrapper', '=1.2.6'
+gem 'opentox-ruby-api-wrapper', '= 1.2.7'
 require 'opentox-ruby-api-wrapper'
-require 'dm-core'
-require 'dm-serializer'
-require 'dm-timestamps'
-require 'dm-types'
-
-
-#set :default_content, :yaml
-DataMapper::setup(:default, "sqlite3://#{Dir.pwd}/model.sqlite3")
 
 class Model
 	include DataMapper::Resource
