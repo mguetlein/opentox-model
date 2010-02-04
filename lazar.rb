@@ -57,6 +57,8 @@ class Lazar < Model
 		lazar = YAML.load self.yaml
 		db_activities = lazar[:activities][compound_uri]
 		if db_activities
+			@dataset = OpenTox::Dataset.new
+			@predictions = {}
 			c = @dataset.find_or_create_compound(compound_uri)
 			f = @dataset.find_or_create_feature(lazar[:endpoint])
 			v = db_activities.join(',')
