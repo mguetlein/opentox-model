@@ -73,9 +73,16 @@ class Lazar < Model
 end
 
 post '/?' do # create model
+	#model = Lazar.new(:task_uri => params[:task_uri])
+	#model.uri = url_for("/#{model.id}", :full)
 	model = Lazar.new
 	model.save
 	model.uri = url_for("/#{model.id}", :full)
+#	model.uri
+#end
+#
+#put '/:id/?' do # create model from yaml representation
+#	model = Lazar.first(params[:id])
 	case request.content_type
 	when /yaml/
 		input =	request.env["rack.input"].read

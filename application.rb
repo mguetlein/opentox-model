@@ -6,6 +6,7 @@ class Model
 	include DataMapper::Resource
 	property :id, Serial
 	property :uri, String, :length => 100
+	#property :task_uri, String, :length => 100
 	property :owl, Text
 	property :yaml, Text
 	property :created_at, DateTime
