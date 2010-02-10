@@ -7,8 +7,8 @@ class Model
 	property :id, Serial
 	property :uri, String, :length => 100
 	#property :task_uri, String, :length => 100
-	property :owl, Text
-	property :yaml, Text
+	property :owl, Text, :length => 2**32-1 
+	property :yaml, Text, :length => 2**32-1 
 	property :created_at, DateTime
 end
 
