@@ -46,6 +46,7 @@ end
 
 
 delete '/?' do
-	Model.all.each { |d| d.destroy! }
+	#Model.all.each { |d| d.destroy! }
+  Model.auto_migrate!
 	"All Models deleted."
 end

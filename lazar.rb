@@ -3,9 +3,11 @@ class Lazar < Model
 	attr_accessor :dataset, :predictions
 
 	def classify(compound_uri)
-
-		@dataset = OpenTox::Dataset.new
-		@predictions = {}
+  
+    unless @dataset
+		  @dataset = OpenTox::Dataset.new
+		  @predictions = {}
+    end
 		lazar = YAML.load yaml
 		compound = OpenTox::Compound.new(:uri => compound_uri)
 		compound_matches = compound.match lazar[:features]
@@ -50,6 +52,7 @@ class Lazar < Model
 					:features => compound_matches
 				} } }
 		end
+    
 	end
 
 	def database_activity?(compound_uri)
