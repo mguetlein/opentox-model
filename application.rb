@@ -1,5 +1,5 @@
 require 'rubygems'
-gem 'opentox-ruby-api-wrapper', '= 1.2.7'
+gem 'opentox-ruby-api-wrapper', '= 1.3.0'
 require 'opentox-ruby-api-wrapper'
 
 class Model
