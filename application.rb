@@ -17,7 +17,7 @@ require 'lazar.rb'
 
 get '/?' do # get index of models
 	response['Content-Type'] = 'text/uri-list'
-	Model.all.collect{|m| m.uri}.join("\n")
+	Model.all.collect{|m| m.uri}.join("\n") + "\n"
 end
 
 get '/:id/?' do
