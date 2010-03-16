@@ -38,7 +38,7 @@ class Lazar < Model
 		end
 
 		if (classification != nil)
-			feature_uri = lazar.dependent_variable + "_lazar_prediction"
+			feature_uri = lazar.dependent_variable + "_lazar_classification"
 			prediction.compounds << compound_uri
 			prediction.features << feature_uri 
 			prediction.data[compound_uri] = [] unless prediction.data[compound_uri]
@@ -72,6 +72,33 @@ class Lazar < Model
 		end
 	end
 
+	def to_owl
+		data = YAML.load(yaml)
+		owl = OpenTox::Owl.new 'Model', uri
+		owl.source = "http://github.com/helma/opentox-model"
+		#owl.algorithm = data.algorithm
+		owl.dependentVariable = data.activity_dataset_uri
+		owl.independentVariables = data.feature_dataset_uri
+		owl.rdf
+	end
+
+end
+
+get '/:id/?' do
+	model = Lazar.get(params[:id])
+	halt 404, "Model #{uri} not found." unless model
+	accept = request.env['HTTP_ACCEPT']
+	accept = "application/rdf+xml" if accept == '*/*' or accept =~ /html/ or accept == '' or accept.nil?
+	case accept
+	when "application/rdf+xml"
+		response['Content-Type'] = 'application/rdf+xml'
+		model.to_owl
+	when /yaml/
+		response['Content-Type'] = 'application/x-yaml'
+		model.yaml
+	else
+		halt 400, "Unsupported MIME type '#{accept}'"
+	end
 end
 
 post '/?' do # create model

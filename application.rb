@@ -21,23 +21,6 @@ get '/?' do # get index of models
 	Model.all.collect{|m| m.uri}.join("\n") + "\n"
 end
 
-get '/:id/?' do
-	model = Model.get(params[:id])
-	halt 404, "Model #{uri} not found." unless model
-	accept = request.env['HTTP_ACCEPT']
-	accept = "application/rdf+xml" if accept == '*/*' or accept =~ /html/ or accept == '' or accept.nil?
-	case accept
-	when "application/rdf+xml"
-		response['Content-Type'] = 'application/rdf+xml'
-		model.owl
-	when /yaml/
-		response['Content-Type'] = 'application/x-yaml'
-		model.yaml
-	else
-		halt 400, "Unsupported MIME type '#{accept}'"
-	end
-end
-
 delete '/:id/?' do
 	begin
 		Model.get(params[:id]).destroy!
