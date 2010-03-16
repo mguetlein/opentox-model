@@ -132,20 +132,20 @@ post '/:id/?' do # create prediction
 		else
 			halt 404, "Content type #{request.env['HTTP_ACCEPT']} not available."
 		end
+
 	elsif dataset_uri
 		task = OpenTox::Task.create
 		pid = Spork.spork(:logger => LOGGER) do
 			task.started
-			task = OpenTox::Task.create
 			input_dataset = OpenTox::Dataset.find(dataset_uri)
 			input_dataset.compounds.each do |compound_uri|
-				lazar.classify(compound_uri) unless lazar.database_activity?(compound_uri)
+				lazar.classify(compound_uri,prediction) unless lazar.database_activity?(compound_uri,prediction)
 			end
-			uri = lazar.prediction_dataset.save
+			uri = prediction.save.chomp
 			task.completed(uri)
 		end
 		task.pid = pid
-		LOGGER.debug "Task PID: " + pid.to_s
+		LOGGER.debug "Prediction task PID: " + pid.to_s
 		#status 303
 		response['Content-Type'] = 'text/uri-list'
 		task.uri + "\n"
