@@ -1,13 +1,11 @@
 class Lazar < Model
 
-	attr_accessor :dataset, :predictions
+	attr_accessor :prediction_dataset
 
-	def classify(compound_uri)
-  
-    #unless @dataset
-		  #@dataset = OpenTox::Dataset.new
-		  @predictions = {}
-    #end
+	def classify(compound_uri,prediction)
+
+		prediction.title += " lazar classification"
+    
 		lazar = YAML.load self.yaml
 		compound = OpenTox::Compound.new(:uri => compound_uri)
 		compound_matches = compound.match lazar.features
@@ -19,8 +17,7 @@ class Lazar < Model
 		lazar.fingerprints.each do |uri,matches|
 
 			sim = OpenTox::Algorithm::Similarity.weighted_tanimoto(compound_matches,matches,lazar.p_values)
-			LOGGER.debug sim
-			if sim > 0#.3
+			if sim > 0.3
 				similarities[uri] = sim
 				lazar.activities[uri].each do |act|
 					case act.to_s
@@ -39,30 +36,36 @@ class Lazar < Model
 		elsif conf < 0.0
 			classification = false
 		end
-		LOGGER.debug conf
-		
-		#compound = @dataset.compounds[compound_uri]
-		#feature = @dataset.features[lazar.endpoint]
 
 		if (classification != nil)
-			#tuple = @dataset.create_tuple(feature,{ 'lazar#classification' => classification, 'lazar#confidence' => conf})
-			#@dataset.add_tuple compound,tuple
-			@predictions[compound_uri] = { lazar.dependent_variable => { :lazar_prediction => {
+			feature_uri = lazar.dependent_variable + "_lazar_prediction"
+			prediction.compounds << compound_uri
+			prediction.features << feature_uri 
+			prediction.data[compound_uri] = [] unless prediction.data[compound_uri]
+			tuple = { 
 					:classification => classification,
 					:confidence => conf,
 					:similarities => similarities,
 					:features => compound_matches
-				} } }
+			}
+			prediction.data[compound_uri] << {feature_uri => tuple}
 		end
     
 	end
 
-	def database_activity?(compound_uri)
+	def database_activity?(compound_uri,prediction)
 		# find database activities
 		lazar = YAML.load self.yaml
 		db_activities = lazar.activities[compound_uri]
 		if db_activities
-			@predictions = {:compound_uri => { lazar.dependent_variable => {:measured_activities => db_activities}}}
+			prediction.source = lazar.activity_dataset_uri
+			feature_uri = lazar.dependent_variable
+			prediction.compounds << compound_uri
+			prediction.features << feature_uri
+			prediction.data[compound_uri] = [] unless prediction.data[compound_uri]
+			db_activities.each do |act|
+				prediction.data[compound_uri] << {feature_uri => act}
+			end
 			true
 		else
 			false
@@ -87,24 +90,38 @@ post '/:id/?' do # create prediction
 	halt 404, "Model #{params[:id]} does not exist." unless lazar
 	halt 404, "No compound_uri or dataset_uri parameter." unless compound_uri = params[:compound_uri] or dataset_uri = params[:dataset_uri]
 
-	if compound_uri
-		lazar.classify(compound_uri) unless lazar.database_activity?(compound_uri) 
-	elsif dataset_uri
-		input_dataset = OpenTox::Dataset.find(dataset_uri)
-		input_dataset.compounds.each do |compound_uri|
-			lazar.classify(compound_uri) unless lazar.database_activity?(compound_uri)
-		end
-	end
+	prediction = OpenTox::Dataset.new 
+	prediction.source = lazar.uri
+	prediction.title = URI.decode YAML.load(lazar.yaml).dependent_variable.split(/#/).last
 
-	case request.env['HTTP_ACCEPT']
-	when /yaml/ 
-		lazar.predictions.to_yaml
-	else
-		if params[:compound_uri]
-			lazar.dataset.rdf
-		elsif params[:dataset_uri]
-			lazar.dataset.save
+	if compound_uri
+		lazar.classify(compound_uri,prediction) unless lazar.database_activity?(compound_uri,prediction) 
+		LOGGER.debug prediction.to_yaml
+		case request.env['HTTP_ACCEPT']
+		when /yaml/ 
+			prediction.to_yaml
+		when 'application/rdf+xml'
+			prediction.to_owl
+		else
+			halt 404, "Content type #{request.env['HTTP_ACCEPT']} not available."
 		end
+	elsif dataset_uri
+		task = OpenTox::Task.create
+		pid = Spork.spork(:logger => LOGGER) do
+			task.started
+			task = OpenTox::Task.create
+			input_dataset = OpenTox::Dataset.find(dataset_uri)
+			input_dataset.compounds.each do |compound_uri|
+				lazar.classify(compound_uri) unless lazar.database_activity?(compound_uri)
+			end
+			uri = lazar.prediction_dataset.save
+			task.completed(uri)
+		end
+		task.pid = pid
+		LOGGER.debug "Task PID: " + pid.to_s
+		#status 303
+		response['Content-Type'] = 'text/uri-list'
+		task.uri + "\n"
 	end
 
 end

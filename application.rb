@@ -7,7 +7,7 @@ class Model
 	include DataMapper::Resource
 	property :id, Serial
 	property :uri, String, :length => 255
-	property :owl, Text, :length => 2**32-1 
+	#property :owl, Text, :length => 2**32-1 
 	property :yaml, Text, :length => 2**32-1 
 	property :created_at, DateTime
 end
