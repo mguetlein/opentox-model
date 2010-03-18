@@ -74,31 +74,73 @@ class Lazar < Model
 
 	def to_owl
 		data = YAML.load(yaml)
+		activity_dataset = YAML.load(RestClient.get(data.activity_dataset_uri, :accept => 'application/x-yaml').to_s)
+		feature_dataset = YAML.load(RestClient.get(data.feature_dataset_uri, :accept => 'application/x-yaml').to_s)
 		owl = OpenTox::Owl.new 'Model', uri
 		owl.source = "http://github.com/helma/opentox-model"
-		#owl.algorithm = data.algorithm
-		owl.dependentVariable = data.activity_dataset_uri
-		owl.independentVariables = data.feature_dataset_uri
+		owl.title = "#{URI.decode(activity_dataset.title)} lazar classification"
+		owl.date = created_at.to_s
+		owl.algorithm = data.algorithm
+		owl.dependentVariables = activity_dataset.features.join(', ')
+		owl.independentVariables = feature_dataset.features.join(', ')
+		owl.predictedVariables = activity_dataset.features.join(', ') + "_lazar_classification"
+		owl.parameters = {
+			"Dataset URI" =>
+				{ :scope => "mandatory", :value => data.activity_dataset_uri },
+			"Feature URI for dependent variable" =>
+				{ :scope => "mandatory", :value =>  activity_dataset.features.join(', ')},
+			"Feature generation URI" =>
+				{ :scope => "mandatory", :value => feature_dataset.source }
+		}
+		owl.trainingDataset = data.activity_dataset_uri
 		owl.rdf
 	end
 
 end
 
 get '/:id/?' do
-	model = Lazar.get(params[:id])
-	halt 404, "Model #{uri} not found." unless model
 	accept = request.env['HTTP_ACCEPT']
-	accept = "application/rdf+xml" if accept == '*/*' or accept =~ /html/ or accept == '' or accept.nil?
+	accept = "application/rdf+xml" if accept == '*/*' or accept == '' or accept.nil?
+	# workaround for browser links
+	case params[:id]
+	when /.yaml$/
+		params[:id].sub!(/.yaml$/,'')
+		accept =  'application/x-yaml'
+	when /.rdf$/
+		params[:id].sub!(/.rdf$/,'')
+		accept =  'application/rdf+xml'
+	end
+	model = Lazar.get(params[:id])
+	halt 404, "Model #{params[:id]} not found." unless model
 	case accept
 	when "application/rdf+xml"
 		response['Content-Type'] = 'application/rdf+xml'
-		model.to_owl
+		unless model.owl # lazy owl creation
+			model.owl = model.to_owl
+			model.save
+		end
+		model.owl
 	when /yaml/
 		response['Content-Type'] = 'application/x-yaml'
 		model.yaml
 	else
 		halt 400, "Unsupported MIME type '#{accept}'"
 	end
+end
+
+get '/:id/algorithm/?' do
+	response['Content-Type'] = 'text/plain'
+	YAML.load(Lazar.get(params[:id]).yaml).algorithm
+end
+
+get '/:id/training_dataset/?' do
+	response['Content-Type'] = 'text/plain'
+	YAML.load(Lazar.get(params[:id]).yaml).activity_dataset_uri
+end
+
+get '/:id/feature_dataset/?' do
+	response['Content-Type'] = 'text/plain'
+	YAML.load(Lazar.get(params[:id]).yaml).feature_dataset_uri
 end
 
 post '/?' do # create model
