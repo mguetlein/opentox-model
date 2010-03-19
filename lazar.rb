@@ -38,7 +38,7 @@ class Lazar < Model
 		end
 
 		if (classification != nil)
-			feature_uri = lazar.dependent_variable + "_lazar_classification"
+			feature_uri = lazar.dependent_variables + "_lazar_classification"
 			prediction.compounds << compound_uri
 			prediction.features << feature_uri 
 			prediction.data[compound_uri] = [] unless prediction.data[compound_uri]
@@ -59,7 +59,7 @@ class Lazar < Model
 		db_activities = lazar.activities[compound_uri]
 		if db_activities
 			prediction.source = lazar.activity_dataset_uri
-			feature_uri = lazar.dependent_variable
+			feature_uri = lazar.dependent_variables
 			prediction.compounds << compound_uri
 			prediction.features << feature_uri
 			prediction.data[compound_uri] = [] unless prediction.data[compound_uri]
@@ -76,7 +76,7 @@ class Lazar < Model
 		data = YAML.load(yaml)
 		activity_dataset = YAML.load(RestClient.get(data.activity_dataset_uri, :accept => 'application/x-yaml').to_s)
 		feature_dataset = YAML.load(RestClient.get(data.feature_dataset_uri, :accept => 'application/x-yaml').to_s)
-		owl = OpenTox::Owl.new 'Model', uri
+		owl = OpenTox::Owl.create 'Model', uri
 		owl.source = "http://github.com/helma/opentox-model"
 		owl.title = "#{URI.decode(activity_dataset.title)} lazar classification"
 		owl.date = created_at.to_s
@@ -161,7 +161,7 @@ post '/:id/?' do # create prediction
 
 	prediction = OpenTox::Dataset.new 
 	prediction.source = lazar.uri
-	prediction.title = URI.decode YAML.load(lazar.yaml).dependent_variable.split(/#/).last
+	prediction.title = URI.decode YAML.load(lazar.yaml).dependent_variables.split(/#/).last
 
 	if compound_uri
 		lazar.classify(compound_uri,prediction) unless lazar.database_activity?(compound_uri,prediction) 
