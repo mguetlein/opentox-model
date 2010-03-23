@@ -1,6 +1,7 @@
 require 'rubygems'
-gem 'opentox-ruby-api-wrapper', '= 1.2.7'
+gem 'opentox-ruby-api-wrapper', '= 1.4.0'
 require 'opentox-ruby-api-wrapper'
+LOGGER.progname = File.expand_path(__FILE__)
 
 class Model
 	include DataMapper::Resource
@@ -17,24 +18,7 @@ require 'lazar.rb'
 
 get '/?' do # get index of models
 	response['Content-Type'] = 'text/uri-list'
-	Model.all.collect{|m| m.uri}.join("\n")
-end
-
-get '/:id/?' do
-	model = Model.get(params[:id])
-	halt 404, "Model #{uri} not found." unless model
-	accept = request.env['HTTP_ACCEPT']
-	accept = "application/rdf+xml" if accept == '*/*' or accept =~ /html/ or accept == '' or accept.nil?
-	case accept
-	when "application/rdf+xml"
-		response['Content-Type'] = 'application/rdf+xml'
-		model.owl
-	when /yaml/
-		response['Content-Type'] = 'application/x-yaml'
-		model.yaml
-	else
-		halt 400, "Unsupported MIME type '#{accept}'"
-	end
+	Model.all.collect{|m| m.uri}.join("\n") + "\n"
 end
 
 delete '/:id/?' do
