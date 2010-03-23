@@ -40,10 +40,10 @@ class Lazar < Model
 		end
 		
 		compound = @dataset.find_or_create_compound(compound_uri)
-		feature = @dataset.find_or_create_feature(lazar[:endpoint])
+		feature = @dataset.find_or_create_feature(lazar[:endpoint]+OpenTox::Model::Lazar::PREDICTION_FEATURE_MODIFIER)
 
 		if (classification != nil)
-			tuple = @dataset.create_tuple(feature,{ 'lazar#classification' => classification, 'lazar#confidence' => conf})
+    	tuple = @dataset.create_tuple(feature,{ 'lazar#classification' => classification, 'lazar#confidence' => conf})
 			@dataset.add_tuple compound,tuple
 			@predictions[compound_uri] = { lazar[:endpoint] => { :lazar_prediction => {
 					:classification => classification,
