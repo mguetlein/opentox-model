@@ -37,7 +37,7 @@ class Lazar < Model
 			classification = false
 		end
 		if (classification != nil)
-			feature_uri = lazar.dependent_variables + "_lazar_classification"
+			feature_uri = lazar.dependent_variables
 			prediction.compounds << compound_uri
 			prediction.features << feature_uri 
 			prediction.data[compound_uri] = [] unless prediction.data[compound_uri]
