@@ -3,7 +3,7 @@ class Lazar < Model
 	attr_accessor :prediction_dataset
 
 	def classify(compound_uri,prediction)
-
+   
 		prediction.title += " lazar classification"
     
 		lazar = YAML.load self.yaml
@@ -63,7 +63,10 @@ class Lazar < Model
 			prediction.features << feature_uri
 			prediction.data[compound_uri] = [] unless prediction.data[compound_uri]
 			db_activities.each do |act|
-				prediction.data[compound_uri] << {feature_uri => act}
+        tuple = { 
+          :classification => act,
+          :confidence => 1}
+				prediction.data[compound_uri] << {feature_uri => tuple}
 			end
 			true
 		else
@@ -174,22 +177,15 @@ post '/:id/?' do # create prediction
 			halt 404, "Content type #{request.env['HTTP_ACCEPT']} not available."
 		end
 
-	elsif dataset_uri
-		task = OpenTox::Task.create
-		pid = Spork.spork(:logger => LOGGER) do
-			task.started
+elsif dataset_uri
+    response['Content-Type'] = 'text/uri-list'
+		OpenTox::Task.as_task do
 			input_dataset = OpenTox::Dataset.find(dataset_uri)
 			input_dataset.compounds.each do |compound_uri|
 				lazar.classify(compound_uri,prediction) unless lazar.database_activity?(compound_uri,prediction)
 			end
 			uri = prediction.save.chomp
-			task.completed(uri)
 		end
-		task.pid = pid
-		LOGGER.debug "Prediction task PID: " + pid.to_s
-		#status 303
-		response['Content-Type'] = 'text/uri-list'
-		task.uri + "\n"
 	end
 
 end
