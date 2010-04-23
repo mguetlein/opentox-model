@@ -93,7 +93,7 @@ class Lazar < Model
 			"Feature URI for dependent variable" =>
 				{ :scope => "mandatory", :value =>  activity_dataset.features.join(', ')},
 			"Feature generation URI" =>
-				{ :scope => "mandatory", :value => feature_dataset.source }
+				{ :scope => "mandatory", :value => feature_dataset.creator }
 		}
 		
 		owl.rdf
@@ -163,7 +163,7 @@ post '/:id/?' do # create prediction
 	halt 404, "No compound_uri or dataset_uri parameter." unless compound_uri = params[:compound_uri] or dataset_uri = params[:dataset_uri]
 
 	prediction = OpenTox::Dataset.new 
-	prediction.source = lazar.uri
+	prediction.creator = lazar.uri
 	prediction.title = URI.decode YAML.load(lazar.yaml).dependentVariables.split(/#/).last
 
 	if compound_uri
