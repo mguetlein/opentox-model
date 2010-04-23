@@ -37,7 +37,7 @@ class Lazar < Model
 			classification = false
 		end
 		if (classification != nil)
-			feature_uri = lazar.dependent_variables
+			feature_uri = lazar.dependentVariables
 			prediction.compounds << compound_uri
 			prediction.features << feature_uri 
 			prediction.data[compound_uri] = [] unless prediction.data[compound_uri]
@@ -57,8 +57,8 @@ class Lazar < Model
 		lazar = YAML.load self.yaml
 		db_activities = lazar.activities[compound_uri]
 		if db_activities
-			prediction.source = lazar.activity_dataset_uri
-			feature_uri = lazar.dependent_variables
+			prediction.source = lazar.trainingDataset
+			feature_uri = lazar.dependentVariables
 			prediction.compounds << compound_uri
 			prediction.features << feature_uri
 			prediction.data[compound_uri] = [] unless prediction.data[compound_uri]
@@ -76,25 +76,26 @@ class Lazar < Model
 
 	def to_owl
 		data = YAML.load(yaml)
-		activity_dataset = YAML.load(RestClient.get(data.activity_dataset_uri, :accept => 'application/x-yaml').to_s)
+		activity_dataset = YAML.load(RestClient.get(data.trainingDataset, :accept => 'application/x-yaml').to_s)
 		feature_dataset = YAML.load(RestClient.get(data.feature_dataset_uri, :accept => 'application/x-yaml').to_s)
 		owl = OpenTox::Owl.create 'Model', uri
-		owl.source = "http://github.com/helma/opentox-model"
-		owl.title = "#{URI.decode(activity_dataset.title)} lazar classification"
-		owl.date = created_at.to_s
-		owl.algorithm = data.algorithm
-		owl.dependentVariables = activity_dataset.features.join(', ')
-		owl.independentVariables = feature_dataset.features.join(', ')
-		owl.predictedVariables = activity_dataset.features.join(', ') + "_lazar_classification"
+    owl.set("creator","http://github.com/helma/opentox-model")
+    owl.set("title","#{URI.decode(activity_dataset.title)} lazar classification")
+    owl.set("date",created_at.to_s)
+    owl.set("algorithm",data.algorithm)
+    owl.set("dependentVariables",activity_dataset.features.join(', '))
+    owl.set("independentVariables",feature_dataset.features.join(', '))
+    owl.set("predictedVariables",activity_dataset.features.join(', ') + "_lazar_classification")
+    owl.set("trainingDataset",data.trainingDataset)
 		owl.parameters = {
 			"Dataset URI" =>
-				{ :scope => "mandatory", :value => data.activity_dataset_uri },
+				{ :scope => "mandatory", :value => data.trainingDataset },
 			"Feature URI for dependent variable" =>
 				{ :scope => "mandatory", :value =>  activity_dataset.features.join(', ')},
 			"Feature generation URI" =>
 				{ :scope => "mandatory", :value => feature_dataset.source }
 		}
-		owl.trainingDataset = data.activity_dataset_uri
+		
 		owl.rdf
 	end
 
@@ -163,7 +164,7 @@ post '/:id/?' do # create prediction
 
 	prediction = OpenTox::Dataset.new 
 	prediction.source = lazar.uri
-	prediction.title = URI.decode YAML.load(lazar.yaml).dependent_variables.split(/#/).last
+	prediction.title = URI.decode YAML.load(lazar.yaml).dependentVariables.split(/#/).last
 
 	if compound_uri
 		lazar.classify(compound_uri,prediction) unless lazar.database_activity?(compound_uri,prediction) 
