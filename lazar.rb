@@ -180,13 +180,14 @@ post '/:id/?' do # create prediction
 
 elsif dataset_uri
     response['Content-Type'] = 'text/uri-list'
-		OpenTox::Task.as_task do
+		task_uri = OpenTox::Task.as_task do
 			input_dataset = OpenTox::Dataset.find(dataset_uri)
 			input_dataset.compounds.each do |compound_uri|
 				lazar.classify(compound_uri,prediction) unless lazar.database_activity?(compound_uri,prediction)
 			end
 			uri = prediction.save.chomp
-		end
+	  end
+    halt 202,task_uri
 	end
 
 end
