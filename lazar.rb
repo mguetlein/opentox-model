@@ -136,9 +136,9 @@ get '/:id/algorithm/?' do
 	YAML.load(Lazar.get(params[:id]).yaml).algorithm
 end
 
-get '/:id/training_dataset/?' do
+get '/:id/trainingDataset/?' do
 	response['Content-Type'] = 'text/plain'
-	YAML.load(Lazar.get(params[:id]).yaml).activity_dataset_uri
+	YAML.load(Lazar.get(params[:id]).yaml).trainingDataset
 end
 
 get '/:id/feature_dataset/?' do
