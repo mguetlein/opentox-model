@@ -57,16 +57,17 @@ class Lazar < Model
 		lazar = YAML.load self.yaml
 		db_activities = lazar.activities[compound_uri]
 		if db_activities
-			prediction.source = lazar.trainingDataset
+			prediction.creator = lazar.trainingDataset
 			feature_uri = lazar.dependentVariables
 			prediction.compounds << compound_uri
 			prediction.features << feature_uri
 			prediction.data[compound_uri] = [] unless prediction.data[compound_uri]
 			db_activities.each do |act|
-        tuple = { 
-          :classification => act,
-          :confidence => 1}
-				prediction.data[compound_uri] << {feature_uri => tuple}
+				prediction.data[compound_uri] << {feature_uri => act}
+        #tuple = { 
+        #  :classification => act}
+          #:confidence => "experimental"}
+				#prediction.data[compound_uri] << {feature_uri => tuple}
 			end
 			true
 		else
@@ -76,8 +77,8 @@ class Lazar < Model
 
 	def to_owl
 		data = YAML.load(yaml)
-		activity_dataset = YAML.load(RestClient.get(data.trainingDataset, :accept => 'application/x-yaml').to_s)
-		feature_dataset = YAML.load(RestClient.get(data.feature_dataset_uri, :accept => 'application/x-yaml').to_s)
+		activity_dataset = YAML.load(RestClient.get(data.trainingDataset, :accept => 'application/x-yaml').body)
+		feature_dataset = YAML.load(RestClient.get(data.feature_dataset_uri, :accept => 'application/x-yaml').body)
 		owl = OpenTox::Owl.create 'Model', uri
     owl.set("creator","http://github.com/helma/opentox-model")
     owl.set("title","#{URI.decode(activity_dataset.title)} lazar classification")
