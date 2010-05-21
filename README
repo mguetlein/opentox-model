@@ -21,22 +21,22 @@ Supported MIME formats (http://chemical-mime.sourceforge.net/):
 Examples:
 
 List all lazar models
-  curl http://webservices.in-silico.ch/test/model
+  curl http://webservices.in-silico.ch/model
 
 Get the representation of a lazar model
-  curl -H "Accept:application/rdf+xml" http://webservices.in-silico.ch/test/model/{id}
+  curl -H "Accept:application/rdf+xml" http://webservices.in-silico.ch/model/{id}
 
 Predict a compound
-  curl -X POST -d compound_uri={compound_uri} http://webservices.in-silico.ch/test/model/{id}
+  curl -X POST -d compound_uri={compound_uri} http://webservices.in-silico.ch/model/{id}
 
 Predict a compound and get the result as YAML
-  curl -X POST -H "Accept:application/x-yaml" -d compound_uri={compound_uri} http://webservices.in-silico.ch/test/model/{id}
+  curl -X POST -H "Accept:application/x-yaml" -d compound_uri={compound_uri} http://webservices.in-silico.ch/model/{id}
 
 Predict a dataset
-  curl -X POST -d dataset_uri={dataset_uri} http://webservices.in-silico.ch/test/model/{id}
+  curl -X POST -d dataset_uri={dataset_uri} http://webservices.in-silico.ch/model/{id}
 
 Delete a model
-  curl -X DELETE http://webservices.in-silico.ch/test/model/{id}
+  curl -X DELETE http://webservices.in-silico.ch/model/{id}
 
 More documentation: Source code (application.rb, lazar.rb)
 
