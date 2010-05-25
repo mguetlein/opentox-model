@@ -46,6 +46,11 @@ class Lazar < Model
 					:confidence => conf,
 					:similarities => similarities,
 					:features => compound_matches
+					# uncomment to enable owl-dl serialisation of predictions
+					# url_for("/lazar#classification") => classification,
+					# url_for("/lazar#confidence") => conf,
+					# url_for("/lazar#similarities") => similarities,
+					# url_for("/lazar#features") => compound_matches
 			}
 			prediction.data[compound_uri] << {feature_uri => tuple}
 		end
