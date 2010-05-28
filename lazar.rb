@@ -3,8 +3,6 @@ class Lazar < Model
 	attr_accessor :prediction_dataset
 
 	def classify(compound_uri,prediction)
-   
-		prediction.title += " lazar classification"
     
 		lazar = YAML.load self.yaml
 		compound = OpenTox::Compound.new(:uri => compound_uri)
@@ -171,6 +169,7 @@ post '/:id/?' do # create prediction
 	prediction = OpenTox::Dataset.new 
 	prediction.creator = lazar.uri
 	prediction.title = URI.decode YAML.load(lazar.yaml).dependentVariables.split(/#/).last
+	prediction.title += " lazar classification"
 
 	if compound_uri
 		lazar.classify(compound_uri,prediction) unless lazar.database_activity?(compound_uri,prediction) 
@@ -191,7 +190,11 @@ elsif dataset_uri
 			input_dataset.compounds.each do |compound_uri|
 				lazar.classify(compound_uri,prediction) unless lazar.database_activity?(compound_uri,prediction)
 			end
-			uri = prediction.save.chomp
+			begin
+				uri = prediction.save.chomp
+			rescue
+				halt 500, "Could not save prediction dataset"
+			end
 	  end
     halt 202,task_uri
 	end
