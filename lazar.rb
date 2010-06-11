@@ -2,6 +2,115 @@ class Lazar < Model
 
 	attr_accessor :prediction_dataset
 
+	# AM begin
+	# regression function, created 06/10
+	# ch: please properly integrate this into the workflow. You will need some criterium for distinguishing regression/classification (hardcoded regression for testing)
+	def regrify(compound_uri,prediction)
+    
+		lazar = YAML.load self.yaml
+		compound = OpenTox::Compound.new(:uri => compound_uri)
+
+		# obtain X values for query compound
+		compound_matches = compound.match lazar.features
+
+		conf = 0.0
+		similarities = {}
+		regression = nil
+
+		regr_occurrences = [] # occurrence vector with {0,1} entries
+		sims = [] # similarity values between query and neighbors
+		acts = [] # activities of neighbors for supervised learning
+		neighbor_matches = [] # as in classification: URIs of matches
+		gram_matrix = [] # square matrix of similarities between neighbors; implements weighted tanimoto kernel
+		i = 0
+
+		# aquire data related to query structure
+		lazar.fingerprints.each do |uri,matches|
+			sim = OpenTox::Algorithm::Similarity.weighted_tanimoto(compound_matches,matches,lazar.p_values)
+			lazar.activities[uri].each do |act|
+				if sim > 0.3
+					similarities[uri] = sim
+					conf += OpenTox::Utils.gauss(sim)
+					sims << OpenTox::Utils.gauss(sim)
+					acts << Math.log10(act.to_f)
+					neighbor_matches[i] = matches
+					i+=1
+				end
+			end
+		end
+		conf = conf/similarities.size
+		LOGGER.debug "Regression: found " + neighbor_matches.size.to_s + " neighbors."
+
+
+		unless neighbor_matches.length == 0
+			# gram matrix
+			(0..(neighbor_matches.length-1)).each do |i|
+				gram_matrix[i] = []
+				# lower triangle
+				(0..(i-1)).each do |j|
+					sim = OpenTox::Algorithm::Similarity.weighted_tanimoto(neighbor_matches[i], neighbor_matches[j], lazar.p_values)
+					gram_matrix[i] << OpenTox::Utils.gauss(sim)
+				end
+				# diagonal element
+				gram_matrix[i][i] = 1.0
+				# upper triangle
+				((i+1)..(neighbor_matches.length-1)).each do |j|
+					sim = OpenTox::Algorithm::Similarity.weighted_tanimoto(neighbor_matches[i], neighbor_matches[j], lazar.p_values)
+					gram_matrix[i] << OpenTox::Utils.gauss(sim)
+				end
+			end
+
+
+			# R integration
+			require ("rinruby") # this requires R to be built with X11 support (implies package xorg-dev)
+			R.eval "library('kernlab')" # this requires R package "kernlab" to be installed
+
+			# set data
+			R.gram_matrix = gram_matrix.flatten
+			R.n = neighbor_matches.length
+			R.y = acts
+			R.sims = sims
+
+			# prepare data
+			R.eval "y<-as.vector(y)"
+			R.eval "gram_matrix<-as.kernelMatrix(matrix(gram_matrix,n,n))"
+			R.eval "sims<-as.vector(sims)"
+			
+			# model + support vectors
+			R.eval "model<-ksvm(gram_matrix, y, kernel=matrix, type=\"nu-svr\", nu=0.8)"
+			R.eval "sv<-as.vector(SVindex(model))"
+			R.eval "sims<-sims[sv]"
+			R.eval "sims<-as.kernelMatrix(matrix(sims,1))"
+			R.eval "p<-predict(model,sims)[1,1]"
+			regression = 10**(R.p.to_f)
+			puts "Prediction is: '" + regression.to_s + "'."
+
+		end
+
+		if (regression != nil)
+			feature_uri = lazar.dependentVariables
+			prediction.compounds << compound_uri
+			prediction.features << feature_uri 
+			prediction.data[compound_uri] = [] unless prediction.data[compound_uri]
+			tuple = { 
+					:classification => regression,
+					:confidence => conf,
+					:similarities => similarities,
+					:features => compound_matches
+					# uncomment to enable owl-dl serialisation of predictions
+					# url_for("/lazar#classification") => classification,
+					# url_for("/lazar#confidence") => conf,
+					# url_for("/lazar#similarities") => similarities,
+					# url_for("/lazar#features") => compound_matches
+			}
+			prediction.data[compound_uri] << {feature_uri => tuple}
+		end
+
+
+	end
+	# AM end
+
+
 	def classify(compound_uri,prediction)
     
 		lazar = YAML.load self.yaml
@@ -172,6 +281,7 @@ post '/:id/?' do # create prediction
 	prediction.title += " lazar classification"
 
 	if compound_uri
+		# AM: switch here between regression and classification
 		lazar.classify(compound_uri,prediction) unless lazar.database_activity?(compound_uri,prediction) 
 		LOGGER.debug prediction.to_yaml
 		case request.env['HTTP_ACCEPT']
@@ -188,6 +298,7 @@ elsif dataset_uri
 		task_uri = OpenTox::Task.as_task do
 			input_dataset = OpenTox::Dataset.find(dataset_uri)
 			input_dataset.compounds.each do |compound_uri|
+				# AM: switch here between regression and classification
 				lazar.classify(compound_uri,prediction) unless lazar.database_activity?(compound_uri,prediction)
 			end
 			begin
