@@ -3,8 +3,6 @@ class Lazar < Model
 	attr_accessor :prediction_dataset
 
 	def classify(compound_uri,prediction)
-   
-		prediction.title += " lazar classification"
     
 		lazar = YAML.load self.yaml
 		compound = OpenTox::Compound.new(:uri => compound_uri)
@@ -46,6 +44,11 @@ class Lazar < Model
 					:confidence => conf,
 					:similarities => similarities,
 					:features => compound_matches
+					# uncomment to enable owl-dl serialisation of predictions
+					# url_for("/lazar#classification") => classification,
+					# url_for("/lazar#confidence") => conf,
+					# url_for("/lazar#similarities") => similarities,
+					# url_for("/lazar#features") => compound_matches
 			}
 			prediction.data[compound_uri] << {feature_uri => tuple}
 		end
@@ -57,16 +60,17 @@ class Lazar < Model
 		lazar = YAML.load self.yaml
 		db_activities = lazar.activities[compound_uri]
 		if db_activities
-			prediction.source = lazar.trainingDataset
+			prediction.creator = lazar.trainingDataset
 			feature_uri = lazar.dependentVariables
 			prediction.compounds << compound_uri
 			prediction.features << feature_uri
 			prediction.data[compound_uri] = [] unless prediction.data[compound_uri]
 			db_activities.each do |act|
-        tuple = { 
-          :classification => act,
-          :confidence => 1}
-				prediction.data[compound_uri] << {feature_uri => tuple}
+				prediction.data[compound_uri] << {feature_uri => act}
+        #tuple = { 
+        #  :classification => act}
+          #:confidence => "experimental"}
+				#prediction.data[compound_uri] << {feature_uri => tuple}
 			end
 			true
 		else
@@ -136,9 +140,9 @@ get '/:id/algorithm/?' do
 	YAML.load(Lazar.get(params[:id]).yaml).algorithm
 end
 
-get '/:id/training_dataset/?' do
+get '/:id/trainingDataset/?' do
 	response['Content-Type'] = 'text/plain'
-	YAML.load(Lazar.get(params[:id]).yaml).activity_dataset_uri
+	YAML.load(Lazar.get(params[:id]).yaml).trainingDataset
 end
 
 get '/:id/feature_dataset/?' do
@@ -165,6 +169,7 @@ post '/:id/?' do # create prediction
 	prediction = OpenTox::Dataset.new 
 	prediction.creator = lazar.uri
 	prediction.title = URI.decode YAML.load(lazar.yaml).dependentVariables.split(/#/).last
+	prediction.title += " lazar classification"
 
 	if compound_uri
 		lazar.classify(compound_uri,prediction) unless lazar.database_activity?(compound_uri,prediction) 
@@ -185,7 +190,11 @@ elsif dataset_uri
 			input_dataset.compounds.each do |compound_uri|
 				lazar.classify(compound_uri,prediction) unless lazar.database_activity?(compound_uri,prediction)
 			end
-			uri = prediction.save.chomp
+			begin
+				uri = prediction.save.chomp
+			rescue
+				halt 500, "Could not save prediction dataset"
+			end
 	  end
     halt 202,task_uri
 	end
