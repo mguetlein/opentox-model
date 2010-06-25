@@ -1,3 +1,10 @@
+# R integration
+# workaround to initialize R non-interactively (former rinruby versions did this by default)
+R = nil
+require ("rinruby") # this requires R to be built with X11 support (implies package xorg-dev) not longer true with this hack (ch)
+@@r = RinRuby.new(false,false) 
+@@r.eval "library('kernlab')" # this requires R package "kernlab" to be installed
+
 class Lazar < Model
 
 	attr_accessor :prediction_dataset
@@ -5,7 +12,7 @@ class Lazar < Model
 	# AM begin
 	# regression function, created 06/10
 	# ch: please properly integrate this into the workflow. You will need some criterium for distinguishing regression/classification (hardcoded regression for testing)
-	def regrify(compound_uri,prediction)
+	def regression(compound_uri,prediction)
     
 		lazar = YAML.load self.yaml
 		compound = OpenTox::Compound.new(:uri => compound_uri)
@@ -32,7 +39,9 @@ class Lazar < Model
 					similarities[uri] = sim
 					conf += OpenTox::Utils.gauss(sim)
 					sims << OpenTox::Utils.gauss(sim)
+					#TODO check for 0 s
 					acts << Math.log10(act.to_f)
+					#acts << act.to_f
 					neighbor_matches[i] = matches
 					i+=1
 				end
@@ -60,30 +69,29 @@ class Lazar < Model
 				end
 			end
 
-
-			# R integration
-			require ("rinruby") # this requires R to be built with X11 support (implies package xorg-dev)
-			R.eval "library('kernlab')" # this requires R package "kernlab" to be installed
-
+			LOGGER.debug "Setting R data ..."
 			# set data
-			R.gram_matrix = gram_matrix.flatten
-			R.n = neighbor_matches.length
-			R.y = acts
-			R.sims = sims
+			@@r.gram_matrix = gram_matrix.flatten
+			@@r.n = neighbor_matches.length
+			@@r.y = acts
+			@@r.sims = sims
 
+			LOGGER.debug "Preparing R data ..."
 			# prepare data
-			R.eval "y<-as.vector(y)"
-			R.eval "gram_matrix<-as.kernelMatrix(matrix(gram_matrix,n,n))"
-			R.eval "sims<-as.vector(sims)"
+			@@r.eval "y<-as.vector(y)"
+			@@r.eval "gram_matrix<-as.kernelMatrix(matrix(gram_matrix,n,n))"
+			@@r.eval "sims<-as.vector(sims)"
 			
 			# model + support vectors
-			R.eval "model<-ksvm(gram_matrix, y, kernel=matrix, type=\"nu-svr\", nu=0.8)"
-			R.eval "sv<-as.vector(SVindex(model))"
-			R.eval "sims<-sims[sv]"
-			R.eval "sims<-as.kernelMatrix(matrix(sims,1))"
-			R.eval "p<-predict(model,sims)[1,1]"
-			regression = 10**(R.p.to_f)
-			puts "Prediction is: '" + regression.to_s + "'."
+			LOGGER.debug "Creating SVM model ..."
+			@@r.eval "model<-ksvm(gram_matrix, y, kernel=matrix, type=\"nu-svr\", nu=0.8)"
+			@@r.eval "sv<-as.vector(SVindex(model))"
+			@@r.eval "sims<-sims[sv]"
+			@@r.eval "sims<-as.kernelMatrix(matrix(sims,1))"
+			LOGGER.debug "Predicting ..."
+			@@r.eval "p<-predict(model,sims)[1,1]"
+			regression = 10**(@@r.p.to_f)
+			LOGGER.debug "Prediction is: '" + regression.to_s + "'."
 
 		end
 
@@ -93,15 +101,10 @@ class Lazar < Model
 			prediction.features << feature_uri 
 			prediction.data[compound_uri] = [] unless prediction.data[compound_uri]
 			tuple = { 
-					:classification => regression,
-					:confidence => conf,
-					:similarities => similarities,
-					:features => compound_matches
-					# uncomment to enable owl-dl serialisation of predictions
-					# url_for("/lazar#classification") => classification,
-					# url_for("/lazar#confidence") => conf,
-					# url_for("/lazar#similarities") => similarities,
-					# url_for("/lazar#features") => compound_matches
+					File.join(@@config[:services]["opentox-model"],"lazar#regression") => regression,
+					File.join(@@config[:services]["opentox-model"],"lazar#confidence") => conf,
+					File.join(@@config[:services]["opentox-model"],"lazar#similarities") => similarities,
+					File.join(@@config[:services]["opentox-model"],"lazar#features") => compound_matches
 			}
 			prediction.data[compound_uri] << {feature_uri => tuple}
 		end
@@ -111,7 +114,7 @@ class Lazar < Model
 	# AM end
 
 
-	def classify(compound_uri,prediction)
+	def classification(compound_uri,prediction)
     
 		lazar = YAML.load self.yaml
 		compound = OpenTox::Compound.new(:uri => compound_uri)
@@ -149,15 +152,10 @@ class Lazar < Model
 			prediction.features << feature_uri 
 			prediction.data[compound_uri] = [] unless prediction.data[compound_uri]
 			tuple = { 
-					:classification => classification,
-					:confidence => conf,
-					:similarities => similarities,
-					:features => compound_matches
-					# uncomment to enable owl-dl serialisation of predictions
-					# url_for("/lazar#classification") => classification,
-					# url_for("/lazar#confidence") => conf,
-					# url_for("/lazar#similarities") => similarities,
-					# url_for("/lazar#features") => compound_matches
+					File.join(@@config[:services]["opentox-model"],"lazar#classification") => classification,
+					File.join(@@config[:services]["opentox-model"],"lazar#confidence") => conf,
+					File.join(@@config[:services]["opentox-model"],"lazar#similarities") => similarities,
+					File.join(@@config[:services]["opentox-model"],"lazar#features") => compound_matches
 			}
 			prediction.data[compound_uri] << {feature_uri => tuple}
 		end
@@ -277,12 +275,18 @@ post '/:id/?' do # create prediction
 
 	prediction = OpenTox::Dataset.new 
 	prediction.creator = lazar.uri
-	prediction.title = URI.decode YAML.load(lazar.yaml).dependentVariables.split(/#/).last
-	prediction.title += " lazar classification"
+	dependent_variable = YAML.load(lazar.yaml).dependentVariables
+	prediction.title = URI.decode(dependent_variable.split(/#/).last) 
+	case dependent_variable
+	when /classification/
+		prediction_type = "classification"
+	when /regression/
+		prediction_type = "regression"
+	end
 
 	if compound_uri
 		# AM: switch here between regression and classification
-		lazar.classify(compound_uri,prediction) unless lazar.database_activity?(compound_uri,prediction) 
+		eval "lazar.#{prediction_type}(compound_uri,prediction) unless lazar.database_activity?(compound_uri,prediction)"
 		LOGGER.debug prediction.to_yaml
 		case request.env['HTTP_ACCEPT']
 		when /yaml/ 
@@ -293,13 +297,13 @@ post '/:id/?' do # create prediction
 			halt 404, "Content type #{request.env['HTTP_ACCEPT']} not available."
 		end
 
-elsif dataset_uri
+	elsif dataset_uri
     response['Content-Type'] = 'text/uri-list'
 		task_uri = OpenTox::Task.as_task do
 			input_dataset = OpenTox::Dataset.find(dataset_uri)
 			input_dataset.compounds.each do |compound_uri|
 				# AM: switch here between regression and classification
-				lazar.classify(compound_uri,prediction) unless lazar.database_activity?(compound_uri,prediction)
+				eval "lazar.#{prediction_type}(compound_uri,prediction) unless lazar.database_activity?(compound_uri,prediction)"
 			end
 			begin
 				uri = prediction.save.chomp
