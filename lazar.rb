@@ -80,8 +80,8 @@ class Lazar < Model
 
 	def to_owl
 		data = YAML.load(yaml)
-		activity_dataset = YAML.load(RestClient.get(data.trainingDataset, :accept => 'text/x-yaml').to_s)
-		feature_dataset = YAML.load(RestClient.get(data.feature_dataset_uri, :accept => 'text/x-yaml').to_s)
+		activity_dataset = YAML.load(RestClient.get(data.trainingDataset, :accept => 'application/x-yaml').to_s)
+		feature_dataset = YAML.load(RestClient.get(data.feature_dataset_uri, :accept => 'application/x-yaml').to_s)
 		owl = OpenTox::Owl.create 'Model', uri
     owl.set("creator","http://github.com/helma/opentox-model")
     owl.set("title","#{URI.decode(activity_dataset.title)} lazar classification")
@@ -112,7 +112,7 @@ get '/:id/?' do
 	case params[:id]
 	when /.yaml$/
 		params[:id].sub!(/.yaml$/,'')
-		accept =  'text/x-yaml'
+		accept =  'application/x-yaml'
 	when /.rdf$/
 		params[:id].sub!(/.rdf$/,'')
 		accept =  'application/rdf+xml'
@@ -128,7 +128,7 @@ get '/:id/?' do
 		end
 		model.owl
 	when /yaml/
-		response['Content-Type'] = 'text/x-yaml'
+		response['Content-Type'] = 'application/x-yaml'
 		model.yaml
 	else
 		halt 400, "Unsupported MIME type '#{accept}'"
