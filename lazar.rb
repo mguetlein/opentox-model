@@ -187,8 +187,8 @@ class Lazar < Model
 
 	def to_owl
 		data = YAML.load(yaml)
-		activity_dataset = YAML.load(RestClient.get(data.trainingDataset, :accept => 'application/x-yaml').body)
-		feature_dataset = YAML.load(RestClient.get(data.feature_dataset_uri, :accept => 'application/x-yaml').body)
+		activity_dataset = YAML.load(RestClient.get(data.trainingDataset, :accept => 'application/x-yaml').to_s)
+		feature_dataset = YAML.load(RestClient.get(data.feature_dataset_uri, :accept => 'application/x-yaml').to_s)
 		owl = OpenTox::Owl.create 'Model', uri
     owl.set("creator","http://github.com/helma/opentox-model")
     owl.set("title","#{URI.decode(activity_dataset.title)} lazar classification")

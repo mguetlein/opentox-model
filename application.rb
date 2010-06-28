@@ -1,5 +1,5 @@
 require 'rubygems'
-gem "opentox-ruby-api-wrapper", "= 1.5.6"
+gem "opentox-ruby-api-wrapper", "= 1.5.7"
 require 'opentox-ruby-api-wrapper'
 LOGGER.progname = File.expand_path(__FILE__)
 
@@ -18,7 +18,7 @@ require 'lazar.rb'
 
 get '/?' do # get index of models
 	response['Content-Type'] = 'text/uri-list'
-	Model.all.collect{|m| m.uri}.join("\n") + "\n"
+	Model.all(params).collect{|m| m.uri}.join("\n") + "\n"
 end
 
 delete '/:id/?' do
