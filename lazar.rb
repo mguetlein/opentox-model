@@ -1,9 +1,8 @@
 # R integration
 # workaround to initialize R non-interactively (former rinruby versions did this by default)
+# avoids compiling R with X
 R = nil
-require ("rinruby") # this requires R to be built with X11 support (implies package xorg-dev) not longer true with this hack (ch)
-@@r = RinRuby.new(false,false) 
-@@r.eval "library('kernlab')" # this requires R package "kernlab" to be installed
+require ("rinruby") 
 
 class Lazar < Model
 
@@ -69,28 +68,30 @@ class Lazar < Model
 				end
 			end
 
+			@r = RinRuby.new(false,false) # global R instance leads to Socket errors after a large number of requests
+			@r.eval "library('kernlab')" # this requires R package "kernlab" to be installed
 			LOGGER.debug "Setting R data ..."
 			# set data
-			@@r.gram_matrix = gram_matrix.flatten
-			@@r.n = neighbor_matches.length
-			@@r.y = acts
-			@@r.sims = sims
+			@r.gram_matrix = gram_matrix.flatten
+			@r.n = neighbor_matches.length
+			@r.y = acts
+			@r.sims = sims
 
 			LOGGER.debug "Preparing R data ..."
 			# prepare data
-			@@r.eval "y<-as.vector(y)"
-			@@r.eval "gram_matrix<-as.kernelMatrix(matrix(gram_matrix,n,n))"
-			@@r.eval "sims<-as.vector(sims)"
+			@r.eval "y<-as.vector(y)"
+			@r.eval "gram_matrix<-as.kernelMatrix(matrix(gram_matrix,n,n))"
+			@r.eval "sims<-as.vector(sims)"
 			
 			# model + support vectors
 			LOGGER.debug "Creating SVM model ..."
-			@@r.eval "model<-ksvm(gram_matrix, y, kernel=matrix, type=\"nu-svr\", nu=0.8)"
-			@@r.eval "sv<-as.vector(SVindex(model))"
-			@@r.eval "sims<-sims[sv]"
-			@@r.eval "sims<-as.kernelMatrix(matrix(sims,1))"
+			@r.eval "model<-ksvm(gram_matrix, y, kernel=matrix, type=\"nu-svr\", nu=0.8)"
+			@r.eval "sv<-as.vector(SVindex(model))"
+			@r.eval "sims<-sims[sv]"
+			@r.eval "sims<-as.kernelMatrix(matrix(sims,1))"
 			LOGGER.debug "Predicting ..."
-			@@r.eval "p<-predict(model,sims)[1,1]"
-			regression = 10**(@@r.p.to_f)
+			@r.eval "p<-predict(model,sims)[1,1]"
+			regression = 10**(@r.p.to_f)
 			LOGGER.debug "Prediction is: '" + regression.to_s + "'."
 
 		end
@@ -102,9 +103,9 @@ class Lazar < Model
 			prediction.data[compound_uri] = [] unless prediction.data[compound_uri]
 			tuple = { 
 					File.join(@@config[:services]["opentox-model"],"lazar#regression") => regression,
-					File.join(@@config[:services]["opentox-model"],"lazar#confidence") => conf,
-					File.join(@@config[:services]["opentox-model"],"lazar#similarities") => similarities,
-					File.join(@@config[:services]["opentox-model"],"lazar#features") => compound_matches
+					File.join(@@config[:services]["opentox-model"],"lazar#confidence") => conf
+					#File.join(@@config[:services]["opentox-model"],"lazar#similarities") => similarities,
+					#File.join(@@config[:services]["opentox-model"],"lazar#features") => compound_matches
 			}
 			prediction.data[compound_uri] << {feature_uri => tuple}
 		end
@@ -153,9 +154,9 @@ class Lazar < Model
 			prediction.data[compound_uri] = [] unless prediction.data[compound_uri]
 			tuple = { 
 					File.join(@@config[:services]["opentox-model"],"lazar#classification") => classification,
-					File.join(@@config[:services]["opentox-model"],"lazar#confidence") => conf,
-					File.join(@@config[:services]["opentox-model"],"lazar#similarities") => similarities,
-					File.join(@@config[:services]["opentox-model"],"lazar#features") => compound_matches
+					File.join(@@config[:services]["opentox-model"],"lazar#confidence") => conf
+					#File.join(@@config[:services]["opentox-model"],"lazar#similarities") => similarities,
+					#File.join(@@config[:services]["opentox-model"],"lazar#features") => compound_matches
 			}
 			prediction.data[compound_uri] << {feature_uri => tuple}
 		end
@@ -191,12 +192,15 @@ class Lazar < Model
 		feature_dataset = YAML.load(RestClient.get(data.feature_dataset_uri, :accept => 'application/x-yaml').to_s)
 		owl = OpenTox::Owl.create 'Model', uri
     owl.set("creator","http://github.com/helma/opentox-model")
-    owl.set("title","#{URI.decode(activity_dataset.title)} lazar classification")
+		# TODO 
+		owl.set("title", URI.decode(data.dependentVariables.split(/#/).last) )
+    #owl.set("title","#{URI.decode(activity_dataset.title)} lazar classification")
     owl.set("date",created_at.to_s)
     owl.set("algorithm",data.algorithm)
     owl.set("dependentVariables",activity_dataset.features.join(', '))
     owl.set("independentVariables",feature_dataset.features.join(', '))
-    owl.set("predictedVariables",activity_dataset.features.join(', ') + "_lazar_classification")
+		owl.set("predictedVariables", data.dependentVariables )
+    #owl.set("predictedVariables",activity_dataset.features.join(', ') + "_lazar_classification")
     owl.set("trainingDataset",data.trainingDataset)
 		owl.parameters = {
 			"Dataset URI" =>
@@ -286,8 +290,12 @@ post '/:id/?' do # create prediction
 
 	if compound_uri
 		# AM: switch here between regression and classification
-		eval "lazar.#{prediction_type}(compound_uri,prediction) unless lazar.database_activity?(compound_uri,prediction)"
-		LOGGER.debug prediction.to_yaml
+		begin
+			eval "lazar.#{prediction_type}(compound_uri,prediction) unless lazar.database_activity?(compound_uri,prediction)"
+		rescue
+			LOGGER.error "#{prediction_type} failed for #{compound_uri} with #{$!} "
+			halt 500, "Prediction of #{compound_uri} failed."
+		end
 		case request.env['HTTP_ACCEPT']
 		when /yaml/ 
 			prediction.to_yaml
@@ -303,7 +311,11 @@ post '/:id/?' do # create prediction
 			input_dataset = OpenTox::Dataset.find(dataset_uri)
 			input_dataset.compounds.each do |compound_uri|
 				# AM: switch here between regression and classification
-				eval "lazar.#{prediction_type}(compound_uri,prediction) unless lazar.database_activity?(compound_uri,prediction)"
+				begin
+					eval "lazar.#{prediction_type}(compound_uri,prediction) unless lazar.database_activity?(compound_uri,prediction)"
+				rescue
+					LOGGER.error "#{prediction_type} failed for #{compound_uri} with #{$!} "
+				end
 			end
 			begin
 				uri = prediction.save.chomp
