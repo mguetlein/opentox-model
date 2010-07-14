@@ -93,6 +93,7 @@ class Lazar < Model
 			@r.eval "p<-predict(model,sims)[1,1]"
 			regression = 10**(@r.p.to_f)
 			LOGGER.debug "Prediction is: '" + regression.to_s + "'."
+			@r.quit # free R
 
 		end
 
