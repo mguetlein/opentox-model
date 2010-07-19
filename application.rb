@@ -16,6 +16,21 @@ DataMapper.auto_upgrade!
 
 require 'lazar.rb'
 
+
+helpers do
+	def activity(a)
+		case a.to_s
+		when "true"
+			act = "active"
+		when "false"
+			act = "inactive"
+		else
+			act = "not available"
+		end
+		act
+	end
+end
+
 get '/?' do # get index of models
 	response['Content-Type'] = 'text/uri-list'
 	Model.all(params).collect{|m| m.uri}.join("\n") + "\n"

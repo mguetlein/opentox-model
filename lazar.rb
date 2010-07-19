@@ -3,6 +3,7 @@
 # avoids compiling R with X
 R = nil
 require ("rinruby") 
+require ("haml") 
 
 class Lazar < Model
 
@@ -21,6 +22,8 @@ class Lazar < Model
 
 		conf = 0.0
 		similarities = {}
+		activities = {}
+		fragments = { :activating => {}, :deactivating => {} }
 		regression = nil
 
 		regr_occurrences = [] # occurrence vector with {0,1} entries
@@ -36,6 +39,8 @@ class Lazar < Model
 			lazar.activities[uri].each do |act|
 				if sim > 0.3
 					similarities[uri] = sim
+					activities[uri] = [] unless activities[uri]
+					activities[uri] << act
 					conf += OpenTox::Utils.gauss(sim)
 					sims << OpenTox::Utils.gauss(sim)
 					#TODO check for 0 s
@@ -102,11 +107,13 @@ class Lazar < Model
 			prediction.compounds << compound_uri
 			prediction.features << feature_uri 
 			prediction.data[compound_uri] = [] unless prediction.data[compound_uri]
+			compound_matches.each { |m| fragments[lazar.effects[m].to_sym][m] = lazar.p_values[m] }
 			tuple = { 
 					File.join(@@config[:services]["opentox-model"],"lazar#regression") => regression,
-					File.join(@@config[:services]["opentox-model"],"lazar#confidence") => conf
+					File.join(@@config[:services]["opentox-model"],"lazar#confidence") => conf,
 					#File.join(@@config[:services]["opentox-model"],"lazar#similarities") => similarities,
-					#File.join(@@config[:services]["opentox-model"],"lazar#features") => compound_matches
+					#File.join(@@config[:services]["opentox-model"],"lazar#activities") => activities,
+					#File.join(@@config[:services]["opentox-model"],"lazar#features") => fragments
 			}
 			prediction.data[compound_uri] << {feature_uri => tuple}
 		end
@@ -124,6 +131,9 @@ class Lazar < Model
 
 		conf = 0.0
 		similarities = {}
+		#activities = {}
+		fragments = { :activating => {}, :deactivating => {} }
+		neighbors = {}
 		classification = nil
 
 		lazar.fingerprints.each do |uri,matches|
@@ -131,7 +141,22 @@ class Lazar < Model
 			sim = OpenTox::Algorithm::Similarity.weighted_tanimoto(compound_matches,matches,lazar.p_values)
 			if sim > 0.3
 				similarities[uri] = sim
+				neighbors[uri] = {:similarity => sim}
+				neighbors[uri][:features] = { :activating => [], :deactivating => [] } unless neighbors[uri][:features]
+				matches.each do |m|
+					if lazar.effects[m] == 'activating'
+						neighbors[uri][:features][:activating] << {:smarts => m, :p_value => lazar.p_values[m]}
+					elsif lazar.effects[m] == 'deactivating'
+						neighbors[uri][:features][:deactivating] << {:smarts => m, :p_value => lazar.p_values[m]}
+					end
+				end
+				#neighbors[uri][:features] = [] unless neighbors[uri][:features]
+				#neighbors[uri][:features] << matches
 				lazar.activities[uri].each do |act|
+					#activities[uri] = [] unless activities[uri]
+					#activities[uri] << act
+					neighbors[uri][:activities] = [] unless neighbors[uri][:activities]
+					neighbors[uri][:activities] << act
 					case act.to_s
 					when 'true'
 						conf += OpenTox::Utils.gauss(sim)
@@ -153,11 +178,13 @@ class Lazar < Model
 			prediction.compounds << compound_uri
 			prediction.features << feature_uri 
 			prediction.data[compound_uri] = [] unless prediction.data[compound_uri]
+			compound_matches.each { |m| fragments[lazar.effects[m].to_sym][m] = lazar.p_values[m] }
+			#fragments[:activating] = fragments[:activating].sort{|a,b| b[1] <=> a[1]}
 			tuple = { 
 					File.join(@@config[:services]["opentox-model"],"lazar#classification") => classification,
-					File.join(@@config[:services]["opentox-model"],"lazar#confidence") => conf
-					#File.join(@@config[:services]["opentox-model"],"lazar#similarities") => similarities,
-					#File.join(@@config[:services]["opentox-model"],"lazar#features") => compound_matches
+					File.join(@@config[:services]["opentox-model"],"lazar#confidence") => conf,
+					#File.join(@@config[:services]["opentox-model"],"lazar#neighbors") => neighbors,
+					#File.join(@@config[:services]["opentox-model"],"lazar#features") => fragments
 			}
 			prediction.data[compound_uri] << {feature_uri => tuple}
 		end
@@ -278,10 +305,10 @@ post '/:id/?' do # create prediction
 	halt 404, "Model #{params[:id]} does not exist." unless lazar
 	halt 404, "No compound_uri or dataset_uri parameter." unless compound_uri = params[:compound_uri] or dataset_uri = params[:dataset_uri]
 
-	prediction = OpenTox::Dataset.new 
-	prediction.creator = lazar.uri
+	@prediction = OpenTox::Dataset.new 
+	@prediction.creator = lazar.uri
 	dependent_variable = YAML.load(lazar.yaml).dependentVariables
-	prediction.title = URI.decode(dependent_variable.split(/#/).last) 
+	@prediction.title = URI.decode(dependent_variable.split(/#/).last) 
 	case dependent_variable
 	when /classification/
 		prediction_type = "classification"
@@ -292,18 +319,39 @@ post '/:id/?' do # create prediction
 	if compound_uri
 		# AM: switch here between regression and classification
 		begin
-			eval "lazar.#{prediction_type}(compound_uri,prediction) unless lazar.database_activity?(compound_uri,prediction)"
+			eval "lazar.#{prediction_type}(compound_uri,@prediction) unless lazar.database_activity?(compound_uri,@prediction)"
 		rescue
 			LOGGER.error "#{prediction_type} failed for #{compound_uri} with #{$!} "
 			halt 500, "Prediction of #{compound_uri} failed."
 		end
 		case request.env['HTTP_ACCEPT']
 		when /yaml/ 
-			prediction.to_yaml
+			@prediction.to_yaml
 		when 'application/rdf+xml'
-			prediction.to_owl
-		else
-			halt 404, "Content type #{request.env['HTTP_ACCEPT']} not available."
+			@prediction.to_owl
+		when /html/
+			@compound = OpenTox::Compound.new(:uri => compound_uri)
+			@title = @prediction.title
+			if @prediction.data[@compound.uri]
+				if @prediction.creator.to_s.match(/model/) # real prediction
+					p = @prediction.data[@compound.uri].first.values.first
+					if !p[File.join(@@config[:services]["opentox-model"],"lazar#classification")].nil?
+						feature = File.join(@@config[:services]["opentox-model"],"lazar#classification")
+					elsif !p[File.join(@@config[:services]["opentox-model"],"lazar#regression")].nil?
+						feature = File.join(@@config[:services]["opentox-model"],"lazar#regression")
+					end
+					@activity = p[feature]
+					@confidence = p[File.join(@@config[:services]["opentox-model"],"lazar#confidence")]
+					@neighbors = p[File.join(@@config[:services]["opentox-model"],"lazar#neighbors")]#.sort{|a,b| b.last[:similarity] <=> a.last[:similarity]}
+					#@training_activities = p[File.join(@@config[:services]["opentox-model"],"lazar#activities")]
+					@features = p[File.join(@@config[:services]["opentox-model"],"lazar#features")]
+				else # database value
+					@measured_activities = @prediction.data[@compound.uri].first.values
+				end
+			else
+				@activity = "not available (no similar compounds in the training dataset)"
+			end
+			haml :prediction
 		end
 
 	elsif dataset_uri
@@ -313,13 +361,13 @@ post '/:id/?' do # create prediction
 			input_dataset.compounds.each do |compound_uri|
 				# AM: switch here between regression and classification
 				begin
-					eval "lazar.#{prediction_type}(compound_uri,prediction) unless lazar.database_activity?(compound_uri,prediction)"
+					eval "lazar.#{prediction_type}(compound_uri,@prediction) unless lazar.database_activity?(compound_uri,@prediction)"
 				rescue
 					LOGGER.error "#{prediction_type} failed for #{compound_uri} with #{$!} "
 				end
 			end
 			begin
-				uri = prediction.save.chomp
+				uri = @prediction.save.chomp
 			rescue
 				halt 500, "Could not save prediction dataset"
 			end
