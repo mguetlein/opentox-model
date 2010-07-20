@@ -8,7 +8,8 @@ class Model
 	property :id, Serial
 	property :uri, String, :length => 255
 	property :owl, Text, :length => 2**32-1 
-	property :yaml, Text, :length => 2**32-1 
+	property :yaml, Text, :length => 2**32-1
+	property :token_id, String, :length => 255 
 	property :created_at, DateTime
 end
 
@@ -23,8 +24,17 @@ end
 
 delete '/:id/?' do
 	begin
-		Model.get(params[:id]).destroy!
+	  model = Model.get(params[:id])
+	  uri = model.uri
+		model.destroy!
 		"Model #{params[:id]} deleted."
+		if params["token_id"] and !Model.get(params[:id]) and uri
+      begin
+        aa = OpenTox::Authorization.delete_policy_from_uri(uri, params["token_id"])
+      rescue
+        LOGGER.warn "Policy delete error for Model URI: #{uri}"
+      end
+    end
 	rescue
 		halt 404, "Model #{params[:id]} does not exist."
 	end
