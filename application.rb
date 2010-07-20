@@ -1,5 +1,5 @@
 require 'rubygems'
-gem "opentox-ruby-api-wrapper", "= 1.5.7"
+gem "opentox-ruby-api-wrapper", "= 1.6.0"
 require 'opentox-ruby-api-wrapper'
 LOGGER.progname = File.expand_path(__FILE__)
 
@@ -16,6 +16,21 @@ end
 DataMapper.auto_upgrade!
 
 require 'lazar.rb'
+
+
+helpers do
+	def activity(a)
+		case a.to_s
+		when "true"
+			act = "active"
+		when "false"
+			act = "inactive"
+		else
+			act = "not available"
+		end
+		act
+	end
+end
 
 get '/?' do # get index of models
 	response['Content-Type'] = 'text/uri-list'
