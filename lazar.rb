@@ -111,9 +111,9 @@ class Lazar < Model
 			tuple = { 
 					File.join(@@config[:services]["opentox-model"],"lazar#regression") => regression,
 					File.join(@@config[:services]["opentox-model"],"lazar#confidence") => conf,
-					#File.join(@@config[:services]["opentox-model"],"lazar#similarities") => similarities,
-					#File.join(@@config[:services]["opentox-model"],"lazar#activities") => activities,
-					#File.join(@@config[:services]["opentox-model"],"lazar#features") => fragments
+					File.join(@@config[:services]["opentox-model"],"lazar#similarities") => similarities,
+					File.join(@@config[:services]["opentox-model"],"lazar#activities") => activities,
+					File.join(@@config[:services]["opentox-model"],"lazar#features") => fragments
 			}
 			prediction.data[compound_uri] << {feature_uri => tuple}
 		end
@@ -183,8 +183,8 @@ class Lazar < Model
 			tuple = { 
 					File.join(@@config[:services]["opentox-model"],"lazar#classification") => classification,
 					File.join(@@config[:services]["opentox-model"],"lazar#confidence") => conf,
-					#File.join(@@config[:services]["opentox-model"],"lazar#neighbors") => neighbors,
-					#File.join(@@config[:services]["opentox-model"],"lazar#features") => fragments
+					File.join(@@config[:services]["opentox-model"],"lazar#neighbors") => neighbors,
+					File.join(@@config[:services]["opentox-model"],"lazar#features") => fragments
 			}
 			prediction.data[compound_uri] << {feature_uri => tuple}
 		end
