@@ -11,6 +11,13 @@ class Model
 	property :yaml, Text, :length => 2**32-1
 	property :token_id, String, :length => 255 
 	property :created_at, DateTime
+	
+  after  :save,    :check_policy
+  
+  def check_policy
+    OpenTox::Authorization.check_policy(uri, token_id)
+  end
+	
 end
 
 DataMapper.auto_upgrade!
