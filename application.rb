@@ -12,8 +12,9 @@ class Model
 	property :token_id, String, :length => 255 
 	property :created_at, DateTime
 	
-  after  :save,    :check_policy
+  after :save, :check_policy
   
+  private
   def check_policy
     OpenTox::Authorization.check_policy(uri, token_id)
   end
@@ -50,9 +51,10 @@ delete '/:id/?' do
 	  uri = model.uri
 		model.destroy!
 		"Model #{params[:id]} deleted."
-		if params["token_id"] and !Model.get(params[:id]) and uri
+		if params[:token_id] and !Model.get(params[:id]) and uri
       begin
-        aa = OpenTox::Authorization.delete_policy_from_uri(uri, params["token_id"])
+        aa = OpenTox::Authorization.delete_policy_from_uri(uri, params[:token_id])
+        LOGGER.debug "Policy deleted for Model URI: #{uri} with token_id: #{params[:token_id]} with result: #{aa}"
       rescue
         LOGGER.warn "Policy delete error for Model URI: #{uri}"
       end

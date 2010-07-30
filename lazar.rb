@@ -291,11 +291,10 @@ end
 
 post '/?' do # create model
 	halt 400, "MIME type \"#{request.content_type}\" not supported." unless request.content_type.match(/yaml/)
-	model = Lazar.new
-	model.token_id = params["token_id"]	if params["token_id"]
-	LOGGER.debug "mr create model post /model/? with token_id: #{model.token_id}"
-	#model.token_id = request.env["HTTP_TOKEN_ID"] if request.env["HTTP_TOKEN_ID"] 
+	model = Lazar.new 
 	model.save
+	model.token_id = params[:token_id] if params[:token_id]
+	model.token_id = request.env["HTTP_TOKEN_ID"] if !model.token_id and request.env["HTTP_TOKEN_ID"] 
 	model.uri = url_for("/#{model.id}", :full)
 	model.yaml =	request.env["rack.input"].read
 	model.save
@@ -311,6 +310,7 @@ post '/:id/?' do # create prediction
 	@prediction = OpenTox::Dataset.new 
 	@prediction.creator = lazar.uri
   @prediction.token_id = params[:token_id]
+  @prediction.token_id = request.env["HTTP_TOKEN_ID"] if !@prediction.token_id and request.env["HTTP_TOKEN_ID"]
 	dependent_variable = YAML.load(lazar.yaml).dependentVariables
 	@prediction.title = URI.decode(dependent_variable.split(/#/).last) 
 	case dependent_variable
@@ -357,7 +357,6 @@ post '/:id/?' do # create prediction
 			end
 			haml :prediction
 		end
-
 	elsif dataset_uri
     response['Content-Type'] = 'text/uri-list'
 		task_uri = OpenTox::Task.as_task do
