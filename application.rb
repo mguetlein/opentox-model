@@ -11,6 +11,15 @@ class Model
 	property :created_at, DateTime
 end
 
+class Prediction
+  # cache predictions
+	include DataMapper::Resource
+	property :id, Serial
+	property :compound_uri, String, :length => 255
+	property :model_uri, String, :length => 255
+	property :yaml, Text, :length => 2**32-1 
+end
+
 DataMapper.auto_upgrade!
 
 require 'lazar.rb'
@@ -50,4 +59,10 @@ delete '/?' do
   Model.auto_migrate!
 	response['Content-Type'] = 'text/plain'
 	"All Models deleted."
+end
+
+delete '/prediction?' do
+  Prediction.auto_migrate!
+	response['Content-Type'] = 'text/plain'
+	"All datasets deleted."
 end
