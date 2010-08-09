@@ -37,9 +37,6 @@ class Lazar < Model
 			sim = OpenTox::Algorithm::Similarity.weighted_tanimoto(compound_matches,matches,lazar.p_values)
 			lazar.activities[uri].each do |act|
 				if sim > 0.3
-					#similarities[uri] = sim
-					#activities[uri] = [] unless activities[uri]
-					#activities[uri] << act
           neighbors[uri] = {:similarity => sim}
           neighbors[uri][:features] = { :activating => [], :deactivating => [] } unless neighbors[uri][:features]
           matches.each do |m|
@@ -221,7 +218,6 @@ class Lazar < Model
 		feature_dataset = YAML.load(RestClient.get(data.feature_dataset_uri, :accept => 'application/x-yaml').to_s)
 		owl = OpenTox::Owl.create 'Model', uri
     owl.set("creator","http://github.com/helma/opentox-model")
-		# TODO 
 		owl.set("title", URI.decode(data.dependentVariables.split(/#/).last) )
     #owl.set("title","#{URI.decode(activity_dataset.title)} lazar classification")
     owl.set("date",created_at.to_s)
