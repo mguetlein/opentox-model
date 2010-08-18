@@ -57,12 +57,7 @@ end
 delete '/?' do
 	# TODO delete datasets
   Model.auto_migrate!
-	response['Content-Type'] = 'text/plain'
-	"All Models deleted."
-end
-
-delete '/prediction?' do
   Prediction.auto_migrate!
 	response['Content-Type'] = 'text/plain'
-	"All datasets deleted."
+	"All models and cached predictions deleted."
 end
