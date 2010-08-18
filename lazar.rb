@@ -318,7 +318,6 @@ post '/:id/?' do # create prediction
     if cached_prediction = Prediction.first(:model_uri => lazar.uri, :compound_uri => compound_uri)
       @prediction = YAML.load(cached_prediction.yaml)
     else
-    #unless @prediction = YAML.load(Prediction.first(:model_uri => lazar.uri, :compound_uri => compound_uri).yaml)
       begin
         # AM: switch here between regression and classification
         eval "lazar.#{prediction_type}(compound_uri,@prediction,true) unless lazar.database_activity?(compound_uri,@prediction)"
@@ -333,6 +332,8 @@ post '/:id/?' do # create prediction
 			@prediction.to_yaml
 		when 'application/rdf+xml'
 			@prediction.to_owl
+    else
+      halt 400, "MIME type \"#{request.env['HTTP_ACCEPT']}\" not supported." 
 		end
 
 	elsif dataset_uri
