@@ -1,5 +1,5 @@
 require 'rubygems'
-gem "opentox-ruby-api-wrapper", "= 1.6.3"
+gem "opentox-ruby-api-wrapper", "= 1.6.4"
 require 'opentox-ruby-api-wrapper'
 
 class Model
