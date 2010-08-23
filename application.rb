@@ -1,7 +1,6 @@
 require 'rubygems'
-gem "opentox-ruby-api-wrapper", "= 1.6.0"
+gem "opentox-ruby-api-wrapper", "= 1.6.3"
 require 'opentox-ruby-api-wrapper'
-LOGGER.progname = File.expand_path(__FILE__)
 
 class Model
 	include DataMapper::Resource
@@ -19,6 +18,15 @@ class Model
     OpenTox::Authorization.check_policy(uri, token_id)
   end
 	
+end
+
+class Prediction
+  # cache predictions
+	include DataMapper::Resource
+	property :id, Serial
+	property :compound_uri, String, :length => 255
+	property :model_uri, String, :length => 255
+	property :yaml, Text, :length => 2**32-1 
 end
 
 DataMapper.auto_upgrade!
@@ -68,6 +76,7 @@ end
 delete '/?' do
 	# TODO delete datasets
   Model.auto_migrate!
+  Prediction.auto_migrate!
 	response['Content-Type'] = 'text/plain'
-	"All Models deleted."
+	"All models and cached predictions deleted."
 end
