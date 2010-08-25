@@ -54,7 +54,6 @@ class Lazar < Model
 					sims << OpenTox::Utils.gauss(sim)
 					#TODO check for 0 s
 					acts << Math.log10(act.to_f)
-					#acts << act.to_f
 					neighbor_matches[i] = matches
 					i+=1
 				end

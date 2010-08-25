@@ -23,6 +23,7 @@ end
 DataMapper.auto_upgrade!
 
 require 'lazar.rb'
+require 'property_lazar.rb'
 
 
 helpers do
