@@ -337,7 +337,7 @@ post '/:id/?' do # create prediction
 
 	elsif dataset_uri
     response['Content-Type'] = 'text/uri-list'
-		task_uri = OpenTox::Task.as_task("Predict dataset",url_for("/#{lazar.id}", :full)) do
+		task_uri = OpenTox::Task.as_task("Predict dataset",url_for("/#{lazar.id}", :full), params) do
 			input_dataset = OpenTox::Dataset.find(dataset_uri)
 			input_dataset.compounds.each do |compound_uri|
 				# AM: switch here between regression and classification
