@@ -215,17 +215,16 @@ class Lazar < Model
 		data = YAML.load(yaml)
 		activity_dataset = YAML.load(RestClient.get(data.trainingDataset, :accept => 'application/x-yaml').to_s)
 		feature_dataset = YAML.load(RestClient.get(data.feature_dataset_uri, :accept => 'application/x-yaml').to_s)
-		owl = OpenTox::Owl.create 'Model', uri
-    owl.set("creator","http://github.com/helma/opentox-model")
-		owl.set("title", URI.decode(data.dependentVariables.split(/#/).last) )
-    #owl.set("title","#{URI.decode(activity_dataset.title)} lazar classification")
-    owl.set("date",created_at.to_s)
-    owl.set("algorithm",data.algorithm)
-    owl.set("dependentVariables",activity_dataset.features.join(', '))
-    owl.set("independentVariables",feature_dataset.features.join(', '))
-		owl.set("predictedVariables", data.dependentVariables )
-    #owl.set("predictedVariables",activity_dataset.features.join(', ') + "_lazar_classification")
-    owl.set("trainingDataset",data.trainingDataset)
+		owl = OpenTox::OwlSerializer.create 'Model', uri
+    owl.annotate("creator","http://github.com/helma/opentox-model")
+		owl.annotate("title", URI.decode(data.dependentVariables.split(/#/).last) )
+    owl.annotate("date",created_at.to_s)
+    owl.annotate("algorithm",data.algorithm)
+    owl.annotate("dependentVariables",activity_dataset.features.join(', '))
+    owl.annotate("independentVariables",feature_dataset.features.join(', '))
+		owl.annotate("predictedVariables", data.dependentVariables )
+    owl.annotate("trainingDataset",data.trainingDataset)
+=begin
 		owl.parameters = {
 			"Dataset URI" =>
 				{ :scope => "mandatory", :value => data.trainingDataset },
@@ -234,6 +233,7 @@ class Lazar < Model
 			"Feature generation URI" =>
 				{ :scope => "mandatory", :value => feature_dataset.creator }
 		}
+=end
 		
 		owl.rdf
 	end
@@ -257,11 +257,12 @@ get '/:id/?' do
 	case accept
 	when "application/rdf+xml"
 		response['Content-Type'] = 'application/rdf+xml'
-		unless model.owl # lazy owl creation
-			model.owl = model.to_owl
-			model.save
-		end
-		model.owl
+#		unless model.owl # lazy owl creation
+#			model.owl = model.to_owl
+#			model.save
+#		end
+#		model.owl
+    model.to_owl
 	when /yaml/
 		response['Content-Type'] = 'application/x-yaml'
 		model.yaml
