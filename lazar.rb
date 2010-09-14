@@ -216,14 +216,16 @@ class Lazar < Model
 		activity_dataset = YAML.load(RestClient.get(data.trainingDataset, :accept => 'application/x-yaml').to_s)
 		feature_dataset = YAML.load(RestClient.get(data.feature_dataset_uri, :accept => 'application/x-yaml').to_s)
 		owl = OpenTox::OwlSerializer.create 'Model', uri
-    owl.annotate("creator","http://github.com/helma/opentox-model")
+    #owl.creator "helma@in-silico.ch"
+    #owl.contributor "helma@in-silico.ch"
+    owl.annotate("creator",data.algorithm,XSD.AnyUri)
 		owl.annotate("title", URI.decode(data.dependentVariables.split(/#/).last) )
-    owl.annotate("date",created_at.to_s)
-    owl.annotate("algorithm",data.algorithm)
-    owl.annotate("dependentVariables",activity_dataset.features.join(', '))
-    owl.annotate("independentVariables",feature_dataset.features.join(', '))
-		owl.annotate("predictedVariables", data.dependentVariables )
-    owl.annotate("trainingDataset",data.trainingDataset)
+    owl.annotate("date",created_at.to_s,XSD.DateTime)
+    #owl.annotate("algorithm",data.algorithm)
+    #owl.annotate("dependentVariables",activity_dataset.features.join(', '))
+    #owl.annotate("independentVariables",feature_dataset.features.join(', '))
+		#owl.annotate("predictedVariables", data.dependentVariables )
+    #owl.annotate("trainingDataset",data.trainingDataset)
 =begin
 		owl.parameters = {
 			"Dataset URI" =>
