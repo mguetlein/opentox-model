@@ -45,6 +45,7 @@ get '/?' do # get index of models
 end
 
 delete '/:id/?' do
+  halt 400,"delete temporarily disabled"
 	begin
 		Model.get(params[:id]).destroy!
 		"Model #{params[:id]} deleted."
@@ -55,6 +56,7 @@ end
 
 
 delete '/?' do
+  halt 400,"delete temporarily disabled"
 	# TODO delete datasets
   Model.auto_migrate!
 	response['Content-Type'] = 'text/plain'
