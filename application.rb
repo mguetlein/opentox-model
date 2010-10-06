@@ -1,5 +1,5 @@
 require 'rubygems'
-gem "opentox-ruby-api-wrapper", "= 1.6.2"
+gem "opentox-ruby-api-wrapper", "= 1.6.2.1"
 require 'opentox-ruby-api-wrapper'
 
 class Model
@@ -40,8 +40,15 @@ helpers do
 end
 
 get '/?' do # get index of models
-	response['Content-Type'] = 'text/uri-list'
-	Model.all(params).collect{|m| m.uri}.join("\n") + "\n"
+  uri_list = Model.all(params).collect{|m| m.uri}.join("\n") + "\n"
+  case request.env['HTTP_ACCEPT'].to_s
+  when /text\/html/
+    content_type "text/html"
+    OpenTox.text_to_html uri_list
+  else
+    content_type 'text/uri-list'
+    uri_list
+  end
 end
 
 delete '/:id/?' do

@@ -257,15 +257,18 @@ get '/:id/?' do
 	halt 404, "Model #{params[:id]} not found." unless model
 	case accept
 	when "application/rdf+xml"
-		response['Content-Type'] = 'application/rdf+xml'
+		content_type 'application/rdf+xml'
 		unless model.owl # lazy owl creation
 			model.owl = model.to_owl
 			model.save
 		end
 		model.owl
 	when /yaml/
-		response['Content-Type'] = 'application/x-yaml'
+		content_type 'application/x-yaml'
 		model.yaml
+  when /text\/html/
+    content_type "text/html"
+    OpenTox.text_to_html model.yaml    
 	else
 		halt 400, "Unsupported MIME type '#{accept}'"
 	end
