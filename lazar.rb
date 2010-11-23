@@ -59,9 +59,9 @@ post '/:id/?' do
 
   response['Content-Type'] = 'text/uri-list'
 	if compound_uri
+    #cache = PredictionCache.first(:model_uri => @lazar.uri, :compound_uri => compound_uri)
+    #return cache.dataset_uri if cache 
     begin
-      cache = PredictionCache.first(:model_uri => @lazar.uri, :compound_uri => compound_uri)
-      return cache.dataset_uri if cache
       prediction_uri = @lazar.predict(compound_uri,true).uri
       PredictionCache.create(:model_uri => @lazar.uri, :compound_uri => compound_uri, :dataset_uri => prediction_uri)
       prediction_uri
@@ -71,10 +71,10 @@ post '/:id/?' do
     end
 
 	elsif dataset_uri
-		task_uri = OpenTox::Task.as_task("Predict dataset",url_for("/#{lazar.id}", :full)) do
-      @lazar.predict(dataset_uri).uri
+		task = OpenTox::Task.create("Predict dataset",url_for("/#{@lazar.id}", :full)) do
+      @lazar.predict_dataset(dataset_uri).uri
 	  end
-    halt 202,task_uri
+    halt 202,task.uri
 	end
 
 end
