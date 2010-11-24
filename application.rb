@@ -1,6 +1,6 @@
 require 'rubygems'
-gem "opentox-ruby-api-wrapper", "= 1.6.6"
-require 'opentox-ruby-api-wrapper'
+gem "opentox-ruby", "~> 0"
+require 'opentox-ruby'
 
 class ModelStore
 	include DataMapper::Resource
