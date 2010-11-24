@@ -1,5 +1,13 @@
 require "haml" 
-#require "lazar-helper"
+
+helpers do
+  def uri_available?(urlStr)
+    url = URI.parse(urlStr)
+    Net::HTTP.start(urlStr.host, urlStr.port) do |http|
+      return http.head(urlStr.request_uri).code == "200"
+    end
+  end
+end
 
 # Get model representation
 # @return [application/rdf+xml,application/x-yaml] Model representation
@@ -59,8 +67,8 @@ post '/:id/?' do
 
   response['Content-Type'] = 'text/uri-list'
 	if compound_uri
-    #cache = PredictionCache.first(:model_uri => @lazar.uri, :compound_uri => compound_uri)
-    #return cache.dataset_uri if cache 
+    cache = PredictionCache.first(:model_uri => @lazar.uri, :compound_uri => compound_uri)
+    return cache.dataset_uri if cache and uri_available?(cache.dataset_uri)
     begin
       prediction_uri = @lazar.predict(compound_uri,true).uri
       PredictionCache.create(:model_uri => @lazar.uri, :compound_uri => compound_uri, :dataset_uri => prediction_uri)
@@ -74,6 +82,7 @@ post '/:id/?' do
 		task = OpenTox::Task.create("Predict dataset",url_for("/#{@lazar.id}", :full)) do
       @lazar.predict_dataset(dataset_uri).uri
 	  end
+    halt 503,task.uri+"\n" if task.status == "Cancelled"
     halt 202,task.uri
 	end
 
