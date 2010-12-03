@@ -1,14 +1,14 @@
 require 'rubygems'
-gem "opentox-ruby-api-wrapper", "= 1.6.3"
-require 'opentox-ruby-api-wrapper'
+gem "opentox-ruby", "~> 0"
+require 'opentox-ruby'
 
-class Model
+class ModelStore
 	include DataMapper::Resource
+	attr_accessor :prediction_dataset
 	property :id, Serial
 	property :uri, String, :length => 255
-	property :owl, Text, :length => 2**32-1 
-	property :yaml, Text, :length => 2**32-1
-	property :token_id, String, :length => 255 
+	property :yaml, Text, :length => 2**32-1 
+	property :token_id, String, :length => 255
 	property :created_at, DateTime
 	
   after :save, :check_policy
@@ -20,18 +20,19 @@ class Model
 	
 end
 
-class Prediction
+class PredictionCache
   # cache predictions
 	include DataMapper::Resource
 	property :id, Serial
 	property :compound_uri, String, :length => 255
 	property :model_uri, String, :length => 255
-	property :yaml, Text, :length => 2**32-1 
+	property :dataset_uri, String, :length => 255
 end
 
 DataMapper.auto_upgrade!
 
 require 'lazar.rb'
+#require 'property_lazar.rb'
 
 
 helpers do
@@ -50,14 +51,13 @@ end
 
 get '/?' do # get index of models
 	response['Content-Type'] = 'text/uri-list'
-	Model.all(params).collect{|m| m.uri}.join("\n") + "\n"
+	ModelStore.all(params).collect{|m| m.uri}.join("\n") + "\n"
 end
 
 delete '/:id/?' do
 	begin
-	  model = Model.get(params[:id])
-	  uri = model.uri
-		model.destroy!
+	  uri = ModelStore.get(params[:id]).uri
+		ModelStore.get(params[:id]).destroy!
 		"Model #{params[:id]} deleted."
 		if params[:token_id] and !Model.get(params[:id]) and uri
       begin
@@ -75,8 +75,8 @@ end
 
 delete '/?' do
 	# TODO delete datasets
-  Model.auto_migrate!
-  Prediction.auto_migrate!
+  ModelStore.auto_migrate!
+  #Prediction.auto_migrate!
 	response['Content-Type'] = 'text/plain'
 	"All models and cached predictions deleted."
 end
