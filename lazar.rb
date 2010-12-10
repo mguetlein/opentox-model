@@ -3,8 +3,16 @@ require "haml"
 helpers do
   def uri_available?(urlStr)
     url = URI.parse(urlStr)
-    Net::HTTP.start(urlStr.host, urlStr.port) do |http|
-      return http.head(urlStr.request_uri).code == "200"
+    token_id = params[:token_id] if params[:token_id]
+    token_id = request.env['HTTP_TOKEN_ID'] if !token_id and request.env['HTTP_TOKEN_ID']
+    unless token_id    
+      Net::HTTP.start(url.host, url.port) do |http|
+        return http.head(url.request_uri).code == "200"
+      end
+    else
+      Net::HTTP.start(url.host, url.port) do |http|
+        return http.post(url.request_uri, "token_id=#{token_id}").code == "202"
+      end
     end
   end
 end
