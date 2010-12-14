@@ -69,6 +69,8 @@ end
 # @param [optional,Header] Accept Content-type of prediction, can be either `application/rdf+xml or application/x-yaml`
 # @return [text/uri-list] URI of prediction task (dataset prediction) or prediction dataset (compound prediction)
 post '/:id/?' do
+	token_id = params[:token_id] if params[:token_id]
+	token_id = request.env["HTTP_TOKEN_ID"] if !token_id and request.env["HTTP_TOKEN_ID"]
 
 	@lazar = YAML.load ModelStore.get(params[:id]).yaml
   
@@ -81,7 +83,7 @@ post '/:id/?' do
     cache = PredictionCache.first(:model_uri => @lazar.uri, :compound_uri => compound_uri)
     return cache.dataset_uri if cache and uri_available?(cache.dataset_uri)
     begin
-      prediction_uri = @lazar.predict(compound_uri,true).uri
+      prediction_uri = @lazar.predict(compound_uri,true,token_id).uri
       PredictionCache.create(:model_uri => @lazar.uri, :compound_uri => compound_uri, :dataset_uri => prediction_uri)
       prediction_uri
     rescue

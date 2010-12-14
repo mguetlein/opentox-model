@@ -4,13 +4,15 @@ require 'opentox-ruby'
 
 class ModelStore
 	include DataMapper::Resource
-	attr_accessor :prediction_dataset
+	attr_accessor :prediction_dataset, :token_id
 	property :id, Serial
 	property :uri, String, :length => 255
 	property :yaml, Text, :length => 2**32-1 
-	property :token_id, String, :length => 255
+	#property :token_id, String, :length => 255
 	property :created_at, DateTime
 	
+  @token_id = nil
+
   after :save, :check_policy
   
   private
