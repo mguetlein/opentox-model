@@ -3,15 +3,15 @@ require "haml"
 helpers do
   def uri_available?(urlStr)
     url = URI.parse(urlStr)
-    token_id = params[:token_id] if params[:token_id]
-    token_id = request.env['HTTP_TOKEN_ID'] if !token_id and request.env['HTTP_TOKEN_ID']
-    unless token_id    
+    subjectid = params[:subjectid] if params[:subjectid]
+    subjectid = request.env['HTTP_SUBJECTID'] if !subjectid and request.env['HTTP_SUBJECTID']
+    unless subjectid    
       Net::HTTP.start(url.host, url.port) do |http|
         return http.head(url.request_uri).code == "200"
       end
     else
       Net::HTTP.start(url.host, url.port) do |http|
-        return http.post(url.request_uri, "token_id=#{token_id}").code == "202"
+        return http.post(url.request_uri, "subjectid=#{subjectid}").code == "202"
       end
     end
   end
@@ -53,8 +53,8 @@ end
 post '/?' do # create model
 	halt 400, "MIME type \"#{request.content_type}\" not supported." unless request.content_type.match(/yaml/)
 	model = ModelStore.create
-	model.token_id = params[:token_id] if params[:token_id]
-	model.token_id = request.env["HTTP_TOKEN_ID"] if !model.token_id and request.env["HTTP_TOKEN_ID"] 
+	model.subjectid = params[:subjectid] if params[:subjectid]
+	model.subjectid = request.env["HTTP_SUBJECTID"] if !model.subjectid and request.env["HTTP_SUBJECTID"] 
 	model.uri = url_for("/#{model.id}", :full)
 	lazar =	YAML.load request.env["rack.input"].read
   lazar.uri = model.uri
@@ -69,8 +69,8 @@ end
 # @param [optional,Header] Accept Content-type of prediction, can be either `application/rdf+xml or application/x-yaml`
 # @return [text/uri-list] URI of prediction task (dataset prediction) or prediction dataset (compound prediction)
 post '/:id/?' do
-	token_id = params[:token_id] if params[:token_id]
-	token_id = request.env["HTTP_TOKEN_ID"] if !token_id and request.env["HTTP_TOKEN_ID"]
+	subjectid = params[:subjectid] if params[:subjectid]
+	subjectid = request.env["HTTP_SUBJECTID"] if !subjectid and request.env["HTTP_SUBJECTID"]
 
 	@lazar = YAML.load ModelStore.get(params[:id]).yaml
   
@@ -83,7 +83,7 @@ post '/:id/?' do
     cache = PredictionCache.first(:model_uri => @lazar.uri, :compound_uri => compound_uri)
     return cache.dataset_uri if cache and uri_available?(cache.dataset_uri)
     begin
-      prediction_uri = @lazar.predict(compound_uri,true,token_id).uri
+      prediction_uri = @lazar.predict(compound_uri,true,subjectid).uri
       PredictionCache.create(:model_uri => @lazar.uri, :compound_uri => compound_uri, :dataset_uri => prediction_uri)
       prediction_uri
     rescue

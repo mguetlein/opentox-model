@@ -4,20 +4,19 @@ require 'opentox-ruby'
 
 class ModelStore
 	include DataMapper::Resource
-	attr_accessor :prediction_dataset, :token_id
+	attr_accessor :prediction_dataset, :subjectid
 	property :id, Serial
 	property :uri, String, :length => 255
 	property :yaml, Text, :length => 2**32-1 
-	#property :token_id, String, :length => 255
 	property :created_at, DateTime
 	
-  @token_id = nil
+  @subjectid = nil
 
   after :save, :check_policy
   
   private
   def check_policy
-    OpenTox::Authorization.check_policy(uri, token_id)
+    OpenTox::Authorization.check_policy(uri, subjectid)
   end
 	
 end
@@ -61,10 +60,10 @@ delete '/:id/?' do
 	  uri = ModelStore.get(params[:id]).uri
 		ModelStore.get(params[:id]).destroy!
 		"Model #{params[:id]} deleted."
-		if params[:token_id] and !ModelStore.get(params[:id]) and uri
+		if params[:subjectid] and !ModelStore.get(params[:id]) and uri
       begin
-        aa = OpenTox::Authorization.delete_policies_from_uri(uri, params[:token_id])
-        LOGGER.debug "Policy deleted for Model URI: #{uri} with token_id: #{params[:token_id]} with result: #{aa}"
+        aa = OpenTox::Authorization.delete_policies_from_uri(uri, params[:subjectid])
+        LOGGER.debug "Policy deleted for Model URI: #{uri} with subjectid: #{params[:subjectid]} with result: #{aa}"
       rescue
         LOGGER.warn "Policy delete error for Model URI: #{uri}"
       end
