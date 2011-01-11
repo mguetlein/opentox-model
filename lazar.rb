@@ -52,8 +52,8 @@ get '/:id/metadata.?:ext?' do
 
   metadata = YAML.load(ModelStore.get(params[:id]).yaml).metadata
 
-	accept = request.env['HTTP_ACCEPT']
-	accept = "application/rdf+xml" if accept == '*/*' or accept == '' or accept.nil?
+  accept = request.env['HTTP_ACCEPT']
+  accept = "application/rdf+xml" if accept == '*/*' or accept == '' or accept.nil?
   if params[:ext]
     case  params[:ext]
     when "yaml"
