@@ -20,6 +20,7 @@ end
 # Get model representation
 # @return [application/rdf+xml,application/x-yaml] Model representation
 get '/:id/?' do
+
 	accept = request.env['HTTP_ACCEPT']
 	accept = "application/rdf+xml" if accept == '*/*' or accept == '' or accept.nil?
 	# workaround for browser links
@@ -46,6 +47,33 @@ get '/:id/?' do
 		halt 400, "Unsupported MIME type '#{accept}'"
 	end
 end
+
+get '/:id/metadata.?:ext?' do
+
+  metadata = YAML.load(ModelStore.get(params[:id]).yaml).metadata
+
+	accept = request.env['HTTP_ACCEPT']
+	accept = "application/rdf+xml" if accept == '*/*' or accept == '' or accept.nil?
+  if params[:ext]
+    case  params[:ext]
+    when "yaml"
+      accept = 'application/x-yaml'
+    when "rdf", "rdfxml"
+      accept = 'application/rdf+xml'
+    end
+  end
+  response['Content-Type'] = accept
+  case accept
+  when /yaml/
+    metadata.to_yaml
+  else #when /rdf/ and anything else
+    serializer = OpenTox::Serializer::Owl.new
+    serializer.add_metadata url_for("/#{params[:id]}",:full), metadata
+    serializer.to_rdfxml
+  end
+
+end
+
 
 # Store a lazar model. This method should not be called directly, use OpenTox::Algorithm::Lazr to create a lazar model
 # @param [Body] lazar Model representation in YAML format
@@ -92,7 +120,7 @@ post '/:id/?' do
     end
 	elsif dataset_uri
 		task = OpenTox::Task.create("Predict dataset",url_for("/#{@lazar.id}", :full)) do
-      @lazar.predict_dataset(dataset_uri).uri
+      @lazar.predict_dataset(dataset_uri, subjectid).uri
 	  end
     halt 503,task.uri+"\n" if task.status == "Cancelled"
     halt 202,task.uri
