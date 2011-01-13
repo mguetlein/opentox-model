@@ -36,7 +36,7 @@ get '/:id/?' do
 	case accept
 	when /application\/rdf\+xml/
     s = OpenTox::Serializer::Owl.new
-    s.add_model(url_for('/lazar',:full),lazar.metadata)
+    s.add_model(model.uri,lazar.metadata)
     response['Content-Type'] = 'application/rdf+xml'
     s.to_rdfxml
 	when /yaml/
