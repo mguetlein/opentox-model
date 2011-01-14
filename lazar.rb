@@ -91,8 +91,8 @@ post '/:id/?' do
       halt 500, "Prediction of #{compound_uri} with #{@lazar.uri} failed."
     end
 	elsif dataset_uri
-		task = OpenTox::Task.create("Predict dataset",url_for("/#{@lazar.id}", :full)) do
-      @lazar.predict_dataset(dataset_uri, subjectid).uri
+		task = OpenTox::Task.create("Predict dataset",url_for("/#{@lazar.id}", :full)) do |task|
+      @lazar.predict_dataset(dataset_uri, subjectid, task).uri
 	  end
     halt 503,task.uri+"\n" if task.status == "Cancelled"
     halt 202,task.uri
