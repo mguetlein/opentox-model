@@ -52,6 +52,7 @@ end
 
 get '/?' do # get index of models
 	response['Content-Type'] = 'text/uri-list'
+	params.delete_if{|k,v| k=="subjectid"}
 	ModelStore.all(params).collect{|m| m.uri}.join("\n") + "\n"
 end
 
@@ -60,12 +61,11 @@ delete '/:id/?' do
     uri = ModelStore.get(params[:id]).uri
     ModelStore.get(params[:id]).destroy!
     "Model #{params[:id]} deleted."
-    subjectid = params[:subjectid] if params[:subjectid]
-    subjectid = request.env['HTTP_SUBJECTID'] if !subjectid and request.env['HTTP_SUBJECTID']		
-    if subjectid and !ModelStore.get(params[:id]) and uri
+
+    if @subjectid and !ModelStore.get(params[:id]) and uri
       begin
-        res = OpenTox::Authorization.delete_policies_from_uri(uri, subjectid)
-        LOGGER.debug "Policy deleted for Model URI: #{uri} with subjectid: #{subjectid} with result: #{res}"
+        res = OpenTox::Authorization.delete_policies_from_uri(uri, @subjectid)
+        LOGGER.debug "Policy deleted for Model URI: #{uri} with subjectid: #{@subjectid} with result: #{res}"
       rescue
         LOGGER.warn "Policy delete error for Model URI: #{uri}"
       end
